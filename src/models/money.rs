@@ -9,8 +9,8 @@ pub struct Money {
 }
 
 impl Money {
-    pub fn new(value: u64) -> Self {
-        Money { value }
+    pub fn new(value: &str) -> Self {
+        Money::from(value)
     }
 }
 
