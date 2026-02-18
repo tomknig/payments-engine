@@ -1,5 +1,5 @@
-use super::money::Money;
 use super::client::ClientId;
+use super::money::Money;
 use serde::{Deserialize, Serialize};
 
 use thiserror::Error;
@@ -38,17 +38,25 @@ impl Account {
         self.available + self.held
     }
 
-    pub fn deposit(&mut self, amount: Money) {
+    pub fn deposit(&mut self, amount: Money) -> Result<(), AccountError> {
+        if self.locked {
+            return Err(AccountError::AccountLocked);
+        }
+
         self.available = self.available + amount;
+        Ok(())
     }
 
     pub fn withdraw(&mut self, amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked)
+            return Err(AccountError::AccountLocked);
         }
 
         if self.available < amount {
-            return Err(AccountError::WithdrawableBalanceExceeded(self.available, amount))
+            return Err(AccountError::WithdrawableBalanceExceeded(
+                self.available,
+                amount,
+            ));
         }
 
         self.available = self.available - amount;
@@ -57,11 +65,14 @@ impl Account {
 
     pub fn open_dispute(&mut self, dispute_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked)
+            return Err(AccountError::AccountLocked);
         }
 
         if self.available < dispute_amount {
-            return Err(AccountError::DisputableBalanceExceeded(self.available, dispute_amount))
+            return Err(AccountError::DisputableBalanceExceeded(
+                self.available,
+                dispute_amount,
+            ));
         }
 
         self.available = self.available - dispute_amount;
@@ -71,11 +82,14 @@ impl Account {
 
     pub fn resolve_dispute(&mut self, resolution_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked)
+            return Err(AccountError::AccountLocked);
         }
 
         if self.held < resolution_amount {
-            return Err(AccountError::HeldBalanceExceeded(self.held, resolution_amount))
+            return Err(AccountError::HeldBalanceExceeded(
+                self.held,
+                resolution_amount,
+            ));
         }
 
         self.held = self.held - resolution_amount;
@@ -85,11 +99,14 @@ impl Account {
 
     pub fn chargeback(&mut self, chargeback_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked)
+            return Err(AccountError::AccountLocked);
         }
 
         if self.held < chargeback_amount {
-            return Err(AccountError::HeldBalanceExceeded(self.held, chargeback_amount))
+            return Err(AccountError::HeldBalanceExceeded(
+                self.held,
+                chargeback_amount,
+            ));
         }
 
         self.held = self.held - chargeback_amount;
@@ -119,12 +136,28 @@ mod tests {
         let mut account = Account::new(1);
         account.available = Money::new("0");
 
-        account.deposit(Money::new("42"));
+        let deposit_result = account.deposit(Money::new("42"));
+        assert!(deposit_result.is_ok());
 
         assert_eq!(account.total(), Money::new("42"));
         assert_eq!(account.available, Money::new("42"));
         assert_eq!(account.held, Money::new("0"));
         assert!(!account.locked);
+    }
+
+    #[test]
+    fn test_deposit_to_locked_account() {
+        let mut account = Account::new(1);
+        account.available = Money::new("0");
+        account.locked = true;
+
+        let deposit_result = account.deposit(Money::new("42"));
+        assert_eq!(deposit_result, Err(AccountError::AccountLocked));
+
+        assert_eq!(account.total(), Money::new("0"));
+        assert_eq!(account.available, Money::new("0"));
+        assert_eq!(account.held, Money::new("0"));
+        assert!(account.locked);
     }
 
     #[test]
@@ -150,7 +183,7 @@ mod tests {
         assert!(withdrawal_result.is_ok());
 
         assert_eq!(account.total(), Money::new("0"));
-            assert_eq!(account.available, Money::new("0"));
+        assert_eq!(account.available, Money::new("0"));
         assert_eq!(account.held, Money::new("0"));
         assert!(!account.locked);
     }
