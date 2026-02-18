@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, ops};
 
 const PRECISION: usize = 4;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Money {
     pub value: u64,
 }
@@ -39,12 +39,38 @@ impl From<&str> for Money {
     }
 }
 
+impl ops::Add for Money {
+    type Output = Money;
+
+    fn add(self, other: Money) -> Self::Output {
+        Money {
+            value: self.value + other.value,
+        }
+    }
+}
+
+impl ops::Sub for Money {
+    type Output = Money;
+
+    fn sub(self, other: Money) -> Self::Output {
+        Money {
+            value: self.value - other.value,
+        }
+    }
+}
+
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let integer_part = self.value / 10u64.pow(PRECISION as u32);
         let fraction_part = self.value % 10u64.pow(PRECISION as u32);
 
         write!(f, "{}.{:0PRECISION$}", integer_part, fraction_part)
+    }
+}
+
+impl fmt::Debug for Money {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
