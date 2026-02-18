@@ -119,381 +119,405 @@ impl Account {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_total_money_invariant() {
-        let mut account = Account::new(1);
-        account.available = Money::new("100");
-        account.held = Money::new("10");
+    mod invariants {
+        use super::*;
 
-        assert_eq!(account.total(), Money::new("110"));
-        assert_eq!(account.available, Money::new("100"));
-        assert_eq!(account.held, Money::new("10"));
-        assert!(!account.locked);
+        #[test]
+        fn test_total_money_invariant() {
+            let mut account = Account::new(1);
+            account.available = Money::new("100");
+            account.held = Money::new("10");
+
+            assert_eq!(account.total(), Money::new("110"));
+            assert_eq!(account.available, Money::new("100"));
+            assert_eq!(account.held, Money::new("10"));
+            assert!(!account.locked);
+        }
     }
 
-    #[test]
-    fn test_deposit_money() {
-        let mut account = Account::new(1);
-        account.available = Money::new("0");
+    mod deposits {
+        use super::*;
 
-        let deposit_result = account.deposit(Money::new("42"));
-        assert!(deposit_result.is_ok());
+        #[test]
+        fn test_deposit_money() {
+            let mut account = Account::new(1);
+            account.available = Money::new("0");
 
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
+            let deposit_result = account.deposit(Money::new("42"));
+            assert!(deposit_result.is_ok());
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_deposit_to_locked_account() {
+            let mut account = Account::new(1);
+            account.available = Money::new("0");
+            account.locked = true;
+
+            let deposit_result = account.deposit(Money::new("42"));
+            assert_eq!(deposit_result, Err(AccountError::AccountLocked));
+
+            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(account.locked);
+        }
     }
 
-    #[test]
-    fn test_deposit_to_locked_account() {
-        let mut account = Account::new(1);
-        account.available = Money::new("0");
-        account.locked = true;
+    mod withdrawals {
+        use super::*;
 
-        let deposit_result = account.deposit(Money::new("42"));
-        assert_eq!(deposit_result, Err(AccountError::AccountLocked));
+        #[test]
+        fn test_withdraw_available_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        assert_eq!(account.total(), Money::new("0"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(account.locked);
+            let withdrawal_result = account.withdraw(Money::new("2"));
+            assert!(withdrawal_result.is_ok());
+
+            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.available, Money::new("40"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_withdraw_all_available_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let withdrawal_result = account.withdraw(Money::new("42"));
+            assert!(withdrawal_result.is_ok());
+
+            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_withdraw_unavailable_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let withdrawal_result = account.withdraw(Money::new("50"));
+            assert!(withdrawal_result.is_err());
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_withdraw_from_empty_account() {
+            let mut account = Account::new(1);
+
+            assert_eq!(account.total(), Money::new("0"));
+
+            let withdrawal_result = account.withdraw(Money::new("1"));
+            assert!(withdrawal_result.is_err());
+
+            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_withdraw_from_locked_account() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+            account.locked = true;
+
+            let withdrawal_result = account.withdraw(Money::new("1"));
+            assert_eq!(withdrawal_result, Err(AccountError::AccountLocked));
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(account.locked);
+        }
     }
 
-    #[test]
-    fn test_withdraw_available_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+    mod open_disputes {
+        use super::*;
 
-        let withdrawal_result = account.withdraw(Money::new("2"));
-        assert!(withdrawal_result.is_ok());
+        #[test]
+        fn test_open_dispute() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        assert_eq!(account.total(), Money::new("40"));
-        assert_eq!(account.available, Money::new("40"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
+            let dispute_result = account.open_dispute(Money::new("20"));
+            assert!(dispute_result.is_ok());
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("22"));
+            assert_eq!(account.held, Money::new("20"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_open_dispute_for_all_available_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let dispute_result = account.open_dispute(Money::new("42"));
+            assert!(dispute_result.is_ok());
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("42"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_open_dispute_with_insufficient_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let dispute_result = account.open_dispute(Money::new("50"));
+            assert!(dispute_result.is_err());
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_open_dispute_on_empty_account() {
+            let mut account = Account::new(1);
+
+            assert_eq!(account.total(), Money::new("0"));
+
+            let dispute_result = account.open_dispute(Money::new("42"));
+            assert!(dispute_result.is_err());
+
+            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_open_dispute_on_locked_account() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+            account.locked = true;
+
+            let dispute_result = account.open_dispute(Money::new("2"));
+            assert_eq!(dispute_result, Err(AccountError::AccountLocked));
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(account.locked);
+        }
     }
 
-    #[test]
-    fn test_withdraw_all_available_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+    mod resolve_disputes {
+        use super::*;
 
-        let withdrawal_result = account.withdraw(Money::new("42"));
-        assert!(withdrawal_result.is_ok());
+        #[test]
+        fn test_resolve_dispute() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        assert_eq!(account.total(), Money::new("0"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
+            let dispute_result = account.open_dispute(Money::new("10"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("10"));
+
+            let resolve_result = account.resolve_dispute(Money::new("2"));
+            assert!(resolve_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("34"));
+            assert_eq!(account.held, Money::new("8"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_resolve_dispute_of_all_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let dispute_result = account.open_dispute(Money::new("42"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("42"));
+
+            let resolve_result = account.resolve_dispute(Money::new("42"));
+            assert!(resolve_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_resolve_dispute_with_insufficient_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            let dispute_result = account.open_dispute(Money::new("2"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("40"));
+            assert_eq!(account.held, Money::new("2"));
+
+            let resolve_result = account.resolve_dispute(Money::new("4"));
+            assert!(resolve_result.is_err());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("40"));
+            assert_eq!(account.held, Money::new("2"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_resolve_dispute_with_no_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+
+            let resolve_result = account.resolve_dispute(Money::new("2"));
+            assert!(resolve_result.is_err());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
+
+        #[test]
+        fn test_resolve_dispute_on_locked_account() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
+            account.held = Money::new("2");
+            account.locked = true;
+
+            let resolve_result = account.resolve_dispute(Money::new("2"));
+            assert_eq!(resolve_result, Err(AccountError::AccountLocked));
+
+            assert_eq!(account.total(), Money::new("44"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("2"));
+            assert!(account.locked);
+        }
     }
 
-    #[test]
-    fn test_withdraw_unavailable_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+    mod chargebacks {
+        use super::*;
 
-        let withdrawal_result = account.withdraw(Money::new("50"));
-        assert!(withdrawal_result.is_err());
+        #[test]
+        fn test_chargeback() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
+            let dispute_result = account.open_dispute(Money::new("10"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("10"));
 
-    #[test]
-    fn test_withdraw_from_empty_account() {
-        let mut account = Account::new(1);
+            let resolve_result = account.chargeback(Money::new("2"));
+            assert!(resolve_result.is_ok());
+            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("8"));
+            assert!(account.locked);
+        }
 
-        assert_eq!(account.total(), Money::new("0"));
+        #[test]
+        fn test_chargeback_of_all_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        let withdrawal_result = account.withdraw(Money::new("1"));
-        assert!(withdrawal_result.is_err());
+            let dispute_result = account.open_dispute(Money::new("42"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("42"));
 
-        assert_eq!(account.total(), Money::new("0"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
+            let resolve_result = account.chargeback(Money::new("42"));
+            assert!(resolve_result.is_ok());
+            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.available, Money::new("0"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(account.locked);
+        }
 
-    #[test]
-    fn test_withdraw_from_locked_account() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-        account.locked = true;
+        #[test]
+        fn test_chargeback_with_insufficient_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        let withdrawal_result = account.withdraw(Money::new("1"));
-        assert_eq!(withdrawal_result, Err(AccountError::AccountLocked));
+            let dispute_result = account.open_dispute(Money::new("2"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("40"));
+            assert_eq!(account.held, Money::new("2"));
+            assert!(!account.locked);
 
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(account.locked);
-    }
+            let resolve_result = account.chargeback(Money::new("4"));
+            assert!(resolve_result.is_err());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("40"));
+            assert_eq!(account.held, Money::new("2"));
+            assert!(!account.locked);
+        }
 
-    #[test]
-    fn test_open_dispute() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+        #[test]
+        fn test_chargeback_with_no_held_funds() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        let dispute_result = account.open_dispute(Money::new("20"));
-        assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
 
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("22"));
-        assert_eq!(account.held, Money::new("20"));
-        assert!(!account.locked);
-    }
+            let resolve_result = account.chargeback(Money::new("2"));
+            assert!(resolve_result.is_err());
 
-    #[test]
-    fn test_open_dispute_for_all_available_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("42"));
+            assert_eq!(account.held, Money::new("0"));
+            assert!(!account.locked);
+        }
 
-        let dispute_result = account.open_dispute(Money::new("42"));
-        assert!(dispute_result.is_ok());
+        #[test]
+        fn test_chargeback_with_locked_account() {
+            let mut account = Account::new(1);
+            account.available = Money::new("42");
 
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("42"));
-        assert!(!account.locked);
-    }
+            let dispute_result = account.open_dispute(Money::new("10"));
+            assert!(dispute_result.is_ok());
+            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("10"));
 
-    #[test]
-    fn test_open_dispute_with_insufficient_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
+            let resolve_result = account.chargeback(Money::new("2"));
+            assert!(resolve_result.is_ok());
+            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("8"));
+            assert!(account.locked);
 
-        let dispute_result = account.open_dispute(Money::new("50"));
-        assert!(dispute_result.is_err());
-
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_open_dispute_on_empty_account() {
-        let mut account = Account::new(1);
-
-        assert_eq!(account.total(), Money::new("0"));
-
-        let dispute_result = account.open_dispute(Money::new("42"));
-        assert!(dispute_result.is_err());
-
-        assert_eq!(account.total(), Money::new("0"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_open_dispute_on_locked_account() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-        account.locked = true;
-
-        let dispute_result = account.open_dispute(Money::new("2"));
-        assert_eq!(dispute_result, Err(AccountError::AccountLocked));
-
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(account.locked);
-    }
-
-    #[test]
-    fn test_resolve_dispute() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("10"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("10"));
-
-        let resolve_result = account.resolve_dispute(Money::new("2"));
-        assert!(resolve_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("34"));
-        assert_eq!(account.held, Money::new("8"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_resolve_dispute_of_all_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("42"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("42"));
-
-        let resolve_result = account.resolve_dispute(Money::new("42"));
-        assert!(resolve_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_resolve_dispute_with_insufficient_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("2"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("40"));
-        assert_eq!(account.held, Money::new("2"));
-
-        let resolve_result = account.resolve_dispute(Money::new("4"));
-        assert!(resolve_result.is_err());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("40"));
-        assert_eq!(account.held, Money::new("2"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_resolve_dispute_with_no_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-
-        let resolve_result = account.resolve_dispute(Money::new("2"));
-        assert!(resolve_result.is_err());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_resolve_dispute_on_locked_account() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-        account.held = Money::new("2");
-        account.locked = true;
-
-        let resolve_result = account.resolve_dispute(Money::new("2"));
-        assert_eq!(resolve_result, Err(AccountError::AccountLocked));
-
-        assert_eq!(account.total(), Money::new("44"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("2"));
-        assert!(account.locked);
-    }
-
-    #[test]
-    fn test_chargeback() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("10"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("10"));
-
-        let resolve_result = account.chargeback(Money::new("2"));
-        assert!(resolve_result.is_ok());
-        assert_eq!(account.total(), Money::new("40"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("8"));
-        assert!(account.locked);
-    }
-
-    #[test]
-    fn test_chargeback_of_all_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("42"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("42"));
-
-        let resolve_result = account.chargeback(Money::new("42"));
-        assert!(resolve_result.is_ok());
-        assert_eq!(account.total(), Money::new("0"));
-        assert_eq!(account.available, Money::new("0"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(account.locked);
-    }
-
-    #[test]
-    fn test_chargeback_with_insufficient_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("2"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("40"));
-        assert_eq!(account.held, Money::new("2"));
-        assert!(!account.locked);
-
-        let resolve_result = account.chargeback(Money::new("4"));
-        assert!(resolve_result.is_err());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("40"));
-        assert_eq!(account.held, Money::new("2"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_chargeback_with_no_held_funds() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-
-        let resolve_result = account.chargeback(Money::new("2"));
-        assert!(resolve_result.is_err());
-
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("42"));
-        assert_eq!(account.held, Money::new("0"));
-        assert!(!account.locked);
-    }
-
-    #[test]
-    fn test_chargeback_with_locked_account() {
-        let mut account = Account::new(1);
-        account.available = Money::new("42");
-
-        let dispute_result = account.open_dispute(Money::new("10"));
-        assert!(dispute_result.is_ok());
-        assert_eq!(account.total(), Money::new("42"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("10"));
-
-        let resolve_result = account.chargeback(Money::new("2"));
-        assert!(resolve_result.is_ok());
-        assert_eq!(account.total(), Money::new("40"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("8"));
-        assert!(account.locked);
-
-        let resolve_result = account.chargeback(Money::new("8"));
-        assert_eq!(resolve_result, Err(AccountError::AccountLocked));
-        assert_eq!(account.total(), Money::new("40"));
-        assert_eq!(account.available, Money::new("32"));
-        assert_eq!(account.held, Money::new("8"));
-        assert!(account.locked);
+            let resolve_result = account.chargeback(Money::new("8"));
+            assert_eq!(resolve_result, Err(AccountError::AccountLocked));
+            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.available, Money::new("32"));
+            assert_eq!(account.held, Money::new("8"));
+            assert!(account.locked);
+        }
     }
 }
