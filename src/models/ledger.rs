@@ -1,4 +1,4 @@
-use super::account::{Account, AccountError};
+use super::account::Account;
 use super::client::ClientId;
 use super::transaction::{
     ChargebackTransaction, DepositTransaction, DisputeTransaction, ResolveTransaction, Transaction,
@@ -21,6 +21,10 @@ pub enum LedgerError {
     DisputeError(TransactionId, ClientId, String),
     #[error("no disputable transaction found for transaction {0} of client {1}")]
     NoDisputableTransactionFound(TransactionId, ClientId),
+    #[error("resolving the dispute for transaction {0} of client {1} but there was no dispute")]
+    NoDisputeFoundToResolve(TransactionId, ClientId),
+    #[error("resolving the dispute for transaction {0} of client {1} failed with reason: {2}")]
+    ResolutionError(TransactionId, ClientId, String),
 }
 
 pub struct Ledger {
@@ -118,9 +122,47 @@ impl Ledger {
 
     fn handle_dispute_resolution(
         &mut self,
-        transaction: ResolveTransaction,
+        resolution: ResolveTransaction,
     ) -> Result<(), LedgerError> {
-        todo!()
+        let deposit = self
+            .deposits
+            .get(&resolution.original_transaction_id)
+            .ok_or(LedgerError::NoDisputableTransactionFound(
+                resolution.original_transaction_id,
+                resolution.client_id,
+            ))?;
+
+        if deposit.client_id != resolution.client_id {
+            return Err(LedgerError::NoDisputableTransactionFound(
+                resolution.original_transaction_id,
+                resolution.client_id,
+            ));
+        }
+
+        if !self.is_transaction_disputed(resolution.original_transaction_id) {
+            return Err(LedgerError::NoDisputeFoundToResolve(
+                resolution.original_transaction_id,
+                resolution.client_id,
+            ));
+        }
+
+        let account = self
+            .accounts
+            .get_mut(&deposit.client_id)
+            .ok_or(LedgerError::AccountNotFound(deposit.client_id))?;
+
+        account.resolve_dispute(deposit.amount).map_err(|e| {
+            LedgerError::ResolutionError(
+                resolution.original_transaction_id,
+                resolution.client_id,
+                e.to_string(),
+            )
+        })?;
+
+        self.open_disputes
+            .remove(&resolution.original_transaction_id);
+
+        Ok(())
     }
 
     fn handle_chargeback(&mut self, transaction: ChargebackTransaction) -> Result<(), LedgerError> {
@@ -296,13 +338,46 @@ mod tests {
                 "unexpected error: {first_error}"
             );
         }
+
+        #[test]
+        fn test_withdrawal_after_a_dispute_has_been_opened() {
+            let client_1 = 1_001;
+
+            let (ledger, results) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_001, Money::new("100"))),
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_002, Money::new("200"))),
+                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
+                Transaction::Withdrawal(WithdrawalTransaction::new(
+                    client_1,
+                    9_003,
+                    Money::new("250"),
+                )),
+            ]);
+
+            let error = results
+                .get(3)
+                .expect("expect a result for the withdrawal transaction")
+                .as_ref()
+                .expect_err("expected the withdrawal transaction to fail");
+
+            assert!(
+                error
+                    .to_string()
+                    .starts_with("withdrawal of client 1001 failed with reason"),
+                "unexpected error: {error}"
+            );
+            let client_1_account = ledger.accounts.get(&client_1).unwrap();
+            assert_eq!(client_1_account.total_balance(), Money::new("300"));
+            assert_eq!(client_1_account.available_balance(), Money::new("200"));
+            assert_eq!(client_1_account.held_balance(), Money::new("100"));
+        }
     }
 
-    mod disputes {
+    mod open_disputes {
         use super::*;
 
         #[test]
-        fn test_dispute_with_existing_deposit() {
+        fn test_open_dispute_with_existing_deposit() {
             let client_1 = 1_001;
 
             let (ledger, _) = ledger_with_transactions(vec![
@@ -317,7 +392,7 @@ mod tests {
         }
 
         #[test]
-        fn test_dispute_already_disputed_deposit() {
+        fn test_open_dispute_for_already_disputed_deposit() {
             let client_1 = 1_001;
 
             let (ledger, results) = ledger_with_transactions(vec![
@@ -346,7 +421,7 @@ mod tests {
         }
 
         #[test]
-        fn test_dispute_transaction_of_another_client() {
+        fn test_open_dispute_for_transaction_of_another_client() {
             let client_1 = 1_001;
             let client_2 = 1_002;
 
@@ -380,7 +455,7 @@ mod tests {
         }
 
         #[test]
-        fn test_dispute_existing_but_incorrect_transaction() {
+        fn test_open_dispute_for_existing_but_incorrect_transaction() {
             let client_1 = 1_001;
 
             let (ledger, results) = ledger_with_transactions(vec![
@@ -412,7 +487,7 @@ mod tests {
         }
 
         #[test]
-        fn test_dispute_non_existing_transaction() {
+        fn test_open_dispute_for_non_existing_transaction() {
             let client_1 = 1_001;
 
             let (ledger, results) = ledger_with_transactions(vec![
@@ -439,7 +514,7 @@ mod tests {
         }
 
         #[test]
-        fn test_dispute_existing_transaction_but_insufficient_balance() {
+        fn test_open_dispute_for_existing_transaction_but_insufficient_balance() {
             let client_1 = 1_001;
 
             let (ledger, results) = ledger_with_transactions(vec![
@@ -464,9 +539,89 @@ mod tests {
                 ),
                 "unexpected error: {error}"
             );
+
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(client_1_account.total_balance(), Money::new("50"));
             assert_eq!(client_1_account.available_balance(), Money::new("50"));
+            assert_eq!(client_1_account.held_balance(), Money::new("0"));
+        }
+    }
+
+    mod resolve_disputes {
+        use super::*;
+
+        #[test]
+        fn test_resolve_an_open_and_unresolved_dispute() {
+            let client_1 = 1_001;
+
+            let (ledger, results) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_001, Money::new("100"))),
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_002, Money::new("200"))),
+                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
+                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+            ]);
+
+            let client_1_account = ledger.accounts.get(&client_1).unwrap();
+            assert_eq!(client_1_account.total_balance(), Money::new("300"));
+            assert_eq!(client_1_account.available_balance(), Money::new("300"));
+            assert_eq!(client_1_account.held_balance(), Money::new("0"));
+        }
+
+        #[test]
+        fn test_resolve_a_resolved_dispute() {
+            let client_1 = 1_001;
+
+            let (ledger, results) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_001, Money::new("100"))),
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_002, Money::new("200"))),
+                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
+                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+            ]);
+
+            let error = results
+                .get(4)
+                .expect("expect a result for the second dispute resolution transaction")
+                .as_ref()
+                .expect_err("expected the second dispute resolution transaction to fail");
+
+            assert!(
+                error.to_string().starts_with(
+                    "resolving the dispute for transaction 9002 of client 1001 but there was no dispute"
+                ),
+                "unexpected error: {error}"
+            );
+            let client_1_account = ledger.accounts.get(&client_1).unwrap();
+            assert_eq!(client_1_account.total_balance(), Money::new("300"));
+            assert_eq!(client_1_account.available_balance(), Money::new("300"));
+            assert_eq!(client_1_account.held_balance(), Money::new("0"));
+        }
+
+        #[test]
+        fn test_resolve_without_an_opened_dispute() {
+            let client_1 = 1_001;
+
+            let (ledger, results) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_001, Money::new("100"))),
+                Transaction::Deposit(DepositTransaction::new(client_1, 9_002, Money::new("200"))),
+                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+            ]);
+
+            let error = results
+                .get(2)
+                .expect("expect a result for the dispute resolution transaction")
+                .as_ref()
+                .expect_err("expected the dispute resolution transaction to fail");
+
+            assert!(
+                error.to_string().starts_with(
+                    "resolving the dispute for transaction 9002 of client 1001 but there was no dispute"
+                ),
+                "unexpected error: {error}"
+            );
+            let client_1_account = ledger.accounts.get(&client_1).unwrap();
+            assert_eq!(client_1_account.total_balance(), Money::new("300"));
+            assert_eq!(client_1_account.available_balance(), Money::new("300"));
             assert_eq!(client_1_account.held_balance(), Money::new("0"));
         }
     }
