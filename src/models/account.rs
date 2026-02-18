@@ -12,8 +12,8 @@ pub enum AccountError {
     DisputableBalanceExceeded(Money, Money),
     #[error("held balance (`{0}`) is insufficient for resolution (`{1}`)")]
     HeldBalanceExceeded(Money, Money),
-    #[error("account is locked")]
-    AccountLocked,
+    #[error("account is frozen")]
+    AccountFrozen,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -48,7 +48,7 @@ impl Account {
 
     pub fn deposit(&mut self, amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked);
+            return Err(AccountError::AccountFrozen);
         }
 
         self.available = self.available + amount;
@@ -57,7 +57,7 @@ impl Account {
 
     pub fn withdraw(&mut self, amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked);
+            return Err(AccountError::AccountFrozen);
         }
 
         if self.available < amount {
@@ -73,7 +73,7 @@ impl Account {
 
     pub fn open_dispute(&mut self, dispute_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked);
+            return Err(AccountError::AccountFrozen);
         }
 
         if self.available < dispute_amount {
@@ -90,7 +90,7 @@ impl Account {
 
     pub fn resolve_dispute(&mut self, resolution_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked);
+            return Err(AccountError::AccountFrozen);
         }
 
         if self.held < resolution_amount {
@@ -105,9 +105,9 @@ impl Account {
         Ok(())
     }
 
-    pub fn chargeback(&mut self, chargeback_amount: Money) -> Result<(), AccountError> {
+    pub fn handle_chargeback(&mut self, chargeback_amount: Money) -> Result<(), AccountError> {
         if self.locked {
-            return Err(AccountError::AccountLocked);
+            return Err(AccountError::AccountFrozen);
         }
 
         if self.held < chargeback_amount {
@@ -167,7 +167,7 @@ mod tests {
             account.locked = true;
 
             let deposit_result = account.deposit(Money::new("42"));
-            assert_eq!(deposit_result, Err(AccountError::AccountLocked));
+            assert_eq!(deposit_result, Err(AccountError::AccountFrozen));
 
             assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
@@ -243,7 +243,7 @@ mod tests {
             account.locked = true;
 
             let withdrawal_result = account.withdraw(Money::new("1"));
-            assert_eq!(withdrawal_result, Err(AccountError::AccountLocked));
+            assert_eq!(withdrawal_result, Err(AccountError::AccountFrozen));
 
             assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
@@ -319,7 +319,7 @@ mod tests {
             account.locked = true;
 
             let dispute_result = account.open_dispute(Money::new("2"));
-            assert_eq!(dispute_result, Err(AccountError::AccountLocked));
+            assert_eq!(dispute_result, Err(AccountError::AccountFrozen));
 
             assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
@@ -413,7 +413,7 @@ mod tests {
             account.locked = true;
 
             let resolve_result = account.resolve_dispute(Money::new("2"));
-            assert_eq!(resolve_result, Err(AccountError::AccountLocked));
+            assert_eq!(resolve_result, Err(AccountError::AccountFrozen));
 
             assert_eq!(account.total_balance(), Money::new("44"));
             assert_eq!(account.available, Money::new("42"));
@@ -436,7 +436,7 @@ mod tests {
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("10"));
 
-            let resolve_result = account.chargeback(Money::new("2"));
+            let resolve_result = account.handle_chargeback(Money::new("2"));
             assert!(resolve_result.is_ok());
             assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
@@ -455,7 +455,7 @@ mod tests {
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("42"));
 
-            let resolve_result = account.chargeback(Money::new("42"));
+            let resolve_result = account.handle_chargeback(Money::new("42"));
             assert!(resolve_result.is_ok());
             assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
@@ -475,7 +475,7 @@ mod tests {
             assert_eq!(account.held, Money::new("2"));
             assert!(!account.locked);
 
-            let resolve_result = account.chargeback(Money::new("4"));
+            let resolve_result = account.handle_chargeback(Money::new("4"));
             assert!(resolve_result.is_err());
             assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("40"));
@@ -493,7 +493,7 @@ mod tests {
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
 
-            let resolve_result = account.chargeback(Money::new("2"));
+            let resolve_result = account.handle_chargeback(Money::new("2"));
             assert!(resolve_result.is_err());
 
             assert_eq!(account.total_balance(), Money::new("42"));
@@ -513,15 +513,15 @@ mod tests {
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("10"));
 
-            let resolve_result = account.chargeback(Money::new("2"));
+            let resolve_result = account.handle_chargeback(Money::new("2"));
             assert!(resolve_result.is_ok());
             assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("8"));
             assert!(account.locked);
 
-            let resolve_result = account.chargeback(Money::new("8"));
-            assert_eq!(resolve_result, Err(AccountError::AccountLocked));
+            let resolve_result = account.handle_chargeback(Money::new("8"));
+            assert_eq!(resolve_result, Err(AccountError::AccountFrozen));
             assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("8"));
