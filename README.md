@@ -2,7 +2,13 @@
 
 ## Assumptions
 
+### Amount of Money
+
 The [domain model for money](./src/models/money.rs) is designed to have a precision of four decimals. I decided to go with a `u64` for the underlying datatype for storing actual monetary data. It therefore uses `10^4-1 ~= 14 bits` for the fractional part and the remaining `64 - 14 = 50 bits` for the integer part. I am therefore assuming that no single transaction, nor total account balance ever exceeds `2^50 ~= 10^15`, which I think is a fair assumption to make for this toy engine.
+
+### Dispute Management
+
+I've decided to accept disputes only when they are targetting deposit transactions. That means, a withdrawal transaction can not be disputed by a client. I came to this assumption from common sense as clients probably only dispute when money is debited from their payment method and not when money is credited to it. Additionally, it is stated as a requirement that "the clients available funds should decrease by the amount disputed" which would be incompatible with disputing withdrawals. In the real world outside of this toy engine, disputing withdrawals e.g. when accounts have been hijacked, is most likely a thing though.
 
 ## AI Usage
 

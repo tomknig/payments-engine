@@ -34,7 +34,15 @@ impl Account {
         }
     }
 
-    pub fn total(&self) -> Money {
+    pub fn available_balance(&self) -> Money {
+        self.available
+    }
+
+    pub fn held_balance(&self) -> Money {
+        self.held
+    }
+
+    pub fn total_balance(&self) -> Money {
         self.available + self.held
     }
 
@@ -128,7 +136,7 @@ mod tests {
             account.available = Money::new("100");
             account.held = Money::new("10");
 
-            assert_eq!(account.total(), Money::new("110"));
+            assert_eq!(account.total_balance(), Money::new("110"));
             assert_eq!(account.available, Money::new("100"));
             assert_eq!(account.held, Money::new("10"));
             assert!(!account.locked);
@@ -146,7 +154,7 @@ mod tests {
             let deposit_result = account.deposit(Money::new("42"));
             assert!(deposit_result.is_ok());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -161,7 +169,7 @@ mod tests {
             let deposit_result = account.deposit(Money::new("42"));
             assert_eq!(deposit_result, Err(AccountError::AccountLocked));
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("0"));
             assert!(account.locked);
@@ -179,7 +187,7 @@ mod tests {
             let withdrawal_result = account.withdraw(Money::new("2"));
             assert!(withdrawal_result.is_ok());
 
-            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("40"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -193,7 +201,7 @@ mod tests {
             let withdrawal_result = account.withdraw(Money::new("42"));
             assert!(withdrawal_result.is_ok());
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -207,7 +215,7 @@ mod tests {
             let withdrawal_result = account.withdraw(Money::new("50"));
             assert!(withdrawal_result.is_err());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -217,12 +225,12 @@ mod tests {
         fn test_withdraw_from_empty_account() {
             let mut account = Account::new(1);
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
 
             let withdrawal_result = account.withdraw(Money::new("1"));
             assert!(withdrawal_result.is_err());
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -237,7 +245,7 @@ mod tests {
             let withdrawal_result = account.withdraw(Money::new("1"));
             assert_eq!(withdrawal_result, Err(AccountError::AccountLocked));
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(account.locked);
@@ -255,7 +263,7 @@ mod tests {
             let dispute_result = account.open_dispute(Money::new("20"));
             assert!(dispute_result.is_ok());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("22"));
             assert_eq!(account.held, Money::new("20"));
             assert!(!account.locked);
@@ -269,7 +277,7 @@ mod tests {
             let dispute_result = account.open_dispute(Money::new("42"));
             assert!(dispute_result.is_ok());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("42"));
             assert!(!account.locked);
@@ -283,7 +291,7 @@ mod tests {
             let dispute_result = account.open_dispute(Money::new("50"));
             assert!(dispute_result.is_err());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -293,12 +301,12 @@ mod tests {
         fn test_open_dispute_on_empty_account() {
             let mut account = Account::new(1);
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
 
             let dispute_result = account.open_dispute(Money::new("42"));
             assert!(dispute_result.is_err());
 
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -313,7 +321,7 @@ mod tests {
             let dispute_result = account.open_dispute(Money::new("2"));
             assert_eq!(dispute_result, Err(AccountError::AccountLocked));
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(account.locked);
@@ -330,13 +338,13 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("10"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("10"));
 
             let resolve_result = account.resolve_dispute(Money::new("2"));
             assert!(resolve_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("34"));
             assert_eq!(account.held, Money::new("8"));
             assert!(!account.locked);
@@ -349,13 +357,13 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("42"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("42"));
 
             let resolve_result = account.resolve_dispute(Money::new("42"));
             assert!(resolve_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -368,13 +376,13 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("2"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("40"));
             assert_eq!(account.held, Money::new("2"));
 
             let resolve_result = account.resolve_dispute(Money::new("4"));
             assert!(resolve_result.is_err());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("40"));
             assert_eq!(account.held, Money::new("2"));
             assert!(!account.locked);
@@ -385,13 +393,13 @@ mod tests {
             let mut account = Account::new(1);
             account.available = Money::new("42");
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
 
             let resolve_result = account.resolve_dispute(Money::new("2"));
             assert!(resolve_result.is_err());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -407,7 +415,7 @@ mod tests {
             let resolve_result = account.resolve_dispute(Money::new("2"));
             assert_eq!(resolve_result, Err(AccountError::AccountLocked));
 
-            assert_eq!(account.total(), Money::new("44"));
+            assert_eq!(account.total_balance(), Money::new("44"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("2"));
             assert!(account.locked);
@@ -424,13 +432,13 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("10"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("10"));
 
             let resolve_result = account.chargeback(Money::new("2"));
             assert!(resolve_result.is_ok());
-            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("8"));
             assert!(account.locked);
@@ -443,13 +451,13 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("42"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("42"));
 
             let resolve_result = account.chargeback(Money::new("42"));
             assert!(resolve_result.is_ok());
-            assert_eq!(account.total(), Money::new("0"));
+            assert_eq!(account.total_balance(), Money::new("0"));
             assert_eq!(account.available, Money::new("0"));
             assert_eq!(account.held, Money::new("0"));
             assert!(account.locked);
@@ -462,14 +470,14 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("2"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("40"));
             assert_eq!(account.held, Money::new("2"));
             assert!(!account.locked);
 
             let resolve_result = account.chargeback(Money::new("4"));
             assert!(resolve_result.is_err());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("40"));
             assert_eq!(account.held, Money::new("2"));
             assert!(!account.locked);
@@ -480,7 +488,7 @@ mod tests {
             let mut account = Account::new(1);
             account.available = Money::new("42");
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -488,7 +496,7 @@ mod tests {
             let resolve_result = account.chargeback(Money::new("2"));
             assert!(resolve_result.is_err());
 
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("42"));
             assert_eq!(account.held, Money::new("0"));
             assert!(!account.locked);
@@ -501,20 +509,20 @@ mod tests {
 
             let dispute_result = account.open_dispute(Money::new("10"));
             assert!(dispute_result.is_ok());
-            assert_eq!(account.total(), Money::new("42"));
+            assert_eq!(account.total_balance(), Money::new("42"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("10"));
 
             let resolve_result = account.chargeback(Money::new("2"));
             assert!(resolve_result.is_ok());
-            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("8"));
             assert!(account.locked);
 
             let resolve_result = account.chargeback(Money::new("8"));
             assert_eq!(resolve_result, Err(AccountError::AccountLocked));
-            assert_eq!(account.total(), Money::new("40"));
+            assert_eq!(account.total_balance(), Money::new("40"));
             assert_eq!(account.available, Money::new("32"));
             assert_eq!(account.held, Money::new("8"));
             assert!(account.locked);

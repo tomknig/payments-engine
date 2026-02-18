@@ -1,39 +1,86 @@
 use super::client::ClientId;
 use super::money::Money;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TransactionType {
-    Deposit,
-    Withdrawal,
-    Dispute,
-    Resolve,
-    Chargeback,
+pub enum Transaction {
+    Deposit(DepositTransaction),
+    Withdrawal(WithdrawalTransaction),
+    Dispute(DisputeTransaction),
+    Resolve(ResolveTransaction),
+    Chargeback(ChargebackTransaction),
 }
 
 pub type TransactionId = u32;
 
-#[derive(Serialize, Deserialize)]
-pub struct Transaction {
-    pub id: TransactionId,
-    pub transaction_type: TransactionType,
+pub struct DepositTransaction {
     pub client_id: ClientId,
+    pub id: TransactionId,
     pub amount: Money,
 }
 
-impl Transaction {
-    pub fn new(
-        transaction_type: TransactionType,
-        client_id: ClientId,
-        id: TransactionId,
-        amount: Money,
-    ) -> Self {
-        Transaction {
-            id,
-            transaction_type,
+impl DepositTransaction {
+    pub fn new(client_id: ClientId, id: TransactionId, amount: Money) -> Self {
+        Self {
             client_id,
+            id,
             amount,
+        }
+    }
+}
+
+pub struct WithdrawalTransaction {
+    pub client_id: ClientId,
+    pub id: TransactionId,
+    pub amount: Money,
+}
+
+impl WithdrawalTransaction {
+    pub fn new(client_id: ClientId, id: TransactionId, amount: Money) -> Self {
+        Self {
+            client_id,
+            id,
+            amount,
+        }
+    }
+}
+
+pub struct DisputeTransaction {
+    pub client_id: ClientId,
+    pub original_transaction_id: TransactionId,
+}
+
+impl DisputeTransaction {
+    pub fn new(client_id: ClientId, original_transaction_id: TransactionId) -> Self {
+        Self {
+            client_id,
+            original_transaction_id,
+        }
+    }
+}
+
+pub struct ResolveTransaction {
+    pub client_id: ClientId,
+    pub original_transaction_id: TransactionId,
+}
+
+impl ResolveTransaction {
+    pub fn new(client_id: ClientId, original_transaction_id: TransactionId) -> Self {
+        Self {
+            client_id,
+            original_transaction_id,
+        }
+    }
+}
+
+pub struct ChargebackTransaction {
+    pub client_id: ClientId,
+    pub original_transaction_id: TransactionId,
+}
+
+impl ChargebackTransaction {
+    pub fn new(client_id: ClientId, original_transaction_id: TransactionId) -> Self {
+        Self {
+            client_id,
+            original_transaction_id,
         }
     }
 }
