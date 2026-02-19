@@ -46,15 +46,15 @@ impl Money {
             if PRECISION - i == 0 {
                 break;
             }
-            let literal = (b - b'0') as u64;
 
-            if literal > 9 {
+            if !b.is_ascii_digit() {
                 return Err(MoneyError::ParseError(format!(
                     "Invalid digit at position {}",
                     i
                 )));
             }
 
+            let literal = (b - b'0') as u64;
             fraction_part += literal * 10u64.pow((PRECISION - i - 1) as u32);
         }
 
@@ -170,6 +170,12 @@ mod tests {
         #[test]
         fn test_parse_multiple_dots() {
             let money = Money::parse("1.0.");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        fn test_parse_special_characters_in_fraction() {
+            let money = Money::parse("1./");
             assert!(money.is_err());
         }
     }
