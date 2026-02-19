@@ -38,15 +38,21 @@ impl Money {
 
         if fraction_slice.len() > PRECISION {
             return Err(MoneyError::ParseError(
-                "Too many fractional digits".to_string(),
+                "too many fractional digits".to_string(),
             ));
         }
 
-        let integer_part = integer_slice
+        let value = integer_slice
             .parse::<u64>()
             .map_err(|e| MoneyError::ParseError(e.to_string()))?;
-        let integer_part = integer_part * 10u64.pow(PRECISION as u32);
-        let mut fraction_part = 0u64;
+
+        let scale = 10u64
+            .checked_pow(PRECISION as u32)
+            .ok_or_else(|| MoneyError::ParseError("precision too large".to_string()))?;
+
+        let mut value = value.checked_mul(scale).ok_or_else(|| {
+            MoneyError::ParseError("integer part exceeds maximum value".to_string())
+        })?;
 
         for (i, &b) in fraction_slice.as_bytes().iter().enumerate() {
             if PRECISION - i == 0 {
@@ -55,18 +61,16 @@ impl Money {
 
             if !b.is_ascii_digit() {
                 return Err(MoneyError::ParseError(format!(
-                    "Invalid digit at position {}",
+                    "invalid digit at position {}",
                     i
                 )));
             }
 
             let literal = (b - b'0') as u64;
-            fraction_part += literal * 10u64.pow((PRECISION - i - 1) as u32);
+            value += literal * 10u64.pow((PRECISION - i - 1) as u32);
         }
 
-        Ok(Money {
-            value: integer_part + fraction_part,
-        })
+        Ok(Money { value })
     }
 }
 
@@ -181,6 +185,32 @@ mod tests {
         #[test]
         fn test_parse_special_characters_in_fraction() {
             let money = Money::parse("1./");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        /// In this test, we check for the exact boundary of an integer that can be passed
+        /// That is, 2^64 / 10^4
+        /// This is the last whole number that should succeed to parse
+        fn test_max_integer_precision_parses_successfully() {
+            let money = Money::parse("1844674407370955");
+            assert_eq!(money.unwrap().value, 18446744073709550000);
+        }
+
+        #[test]
+        /// In this test, we check for the exact boundary of an integer that can be passed
+        /// That is, 2^64 / 10^4 + 1_0000
+        /// This is the first whole number that should fail, but not panic on overflow
+        fn test_overflow_at_max_integer_precision_doesnt_panic() {
+            // =
+            let money = Money::parse("1844674407370956");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        /// In this test, we check for 2^64 to gracefully fail, i.e., don't panic on overflow
+        fn test_overflow_at_max_precision_doesnt_panic() {
+            let money = Money::parse("18446744073709551616");
             assert!(money.is_err());
         }
     }

@@ -118,6 +118,10 @@ mod integration_tests {
                 "test_20_too_many_fractional_digits_transactions.csv",
                 "test_20_too_many_fractional_digits_accounts.csv",
             ),
+            (
+                "test_21_large_amounts_transactions.csv",
+                "test_21_large_amounts_accounts.csv",
+            ),
         ];
 
         for (transactions, accounts) in cases {
