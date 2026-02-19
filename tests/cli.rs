@@ -114,6 +114,10 @@ mod integration_tests {
                 "test_19_invalid_transaction_type_transactions.csv",
                 "test_19_invalid_transaction_type_accounts.csv",
             ),
+            (
+                "test_20_too_many_fractional_digits_transactions.csv",
+                "test_20_too_many_fractional_digits_accounts.csv",
+            ),
         ];
 
         for (transactions, accounts) in cases {

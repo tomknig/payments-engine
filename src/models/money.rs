@@ -36,6 +36,12 @@ impl Money {
             ));
         }
 
+        if fraction_slice.len() > PRECISION {
+            return Err(MoneyError::ParseError(
+                "Too many fractional digits".to_string(),
+            ));
+        }
+
         let integer_part = integer_slice
             .parse::<u64>()
             .map_err(|e| MoneyError::ParseError(e.to_string()))?;
@@ -137,10 +143,9 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_too_many_decimal_places() {
+        fn test_reject_too_many_decimal_places() {
             let money = Money::parse("1.23456");
-            assert!(money.is_ok());
-            assert_eq!(money.unwrap().value, 1_2345);
+            assert!(money.is_err());
         }
 
         #[test]
@@ -190,7 +195,25 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_fraction() {
+        fn test_parse_one_fractional_digit() {
+            let money = Money::parse_unchecked("123.4");
+            assert_eq!(money.value, 123_4000);
+        }
+
+        #[test]
+        fn test_parse_two_fractional_digits() {
+            let money = Money::parse_unchecked("123.45");
+            assert_eq!(money.value, 123_4500);
+        }
+
+        #[test]
+        fn test_parse_three_fractional_digits() {
+            let money = Money::parse_unchecked("123.456");
+            assert_eq!(money.value, 123_4560);
+        }
+
+        #[test]
+        fn test_parse_four_fractional_digits() {
             let money = Money::parse_unchecked("123.4567");
             assert_eq!(money.value, 123_4567);
         }
