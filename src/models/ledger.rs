@@ -19,16 +19,12 @@ pub enum LedgerError {
     TransactionAlreadyDisputed(TransactionId, ClientId),
     #[error("opening a dispute for transaction {0} of client {1} failed with reason: {2}")]
     DisputeError(TransactionId, ClientId, String),
-    #[error("no disputable transaction found for transaction {0} of client {1}")]
-    NoDisputableTransactionFound(TransactionId, ClientId),
-    #[error("resolving the dispute for transaction {0} of client {1} but there was no dispute")]
-    NoDisputeFoundToResolve(TransactionId, ClientId),
+    #[error("no transaction found for id {0} of client {1}")]
+    TransactionNotFound(TransactionId, ClientId),
     #[error("resolving the dispute for transaction {0} of client {1} failed with reason: {2}")]
     ResolutionError(TransactionId, ClientId, String),
-    #[error(
-        "chargeback for transaction {0} of client {1} failed because there was no open dispute"
-    )]
-    NoDisputeFoundForChargeback(TransactionId, ClientId),
+    #[error("dispute not found for transaction {0} of client {1}")]
+    DisputeNotFound(TransactionId, ClientId),
     #[error("chargeback for transaction {0} of client {1} failed with reason: {2}")]
     ChargebackError(TransactionId, ClientId, String),
     #[error("transaction {0} has already been processed")]
@@ -39,6 +35,7 @@ pub struct Ledger {
     accounts: HashMap<ClientId, Account>,
     deposits: HashMap<TransactionId, DepositTransaction>,
     open_disputes: HashSet<TransactionId>,
+    withdrawal_ids: HashSet<TransactionId>,
 }
 
 impl Ledger {
@@ -47,6 +44,7 @@ impl Ledger {
             accounts: HashMap::new(),
             deposits: HashMap::new(),
             open_disputes: HashSet::new(),
+            withdrawal_ids: HashSet::new(),
         }
     }
 
@@ -58,8 +56,29 @@ impl Ledger {
         self.open_disputes.contains(&transaction_id)
     }
 
+    fn has_transaction_been_processed(&self, transaction_id: &TransactionId) -> bool {
+        self.withdrawal_ids.contains(transaction_id) || self.deposits.contains_key(transaction_id)
+    }
+
+    fn get_deposit_transaction(
+        &self,
+        client_id: ClientId,
+        transaction_id: TransactionId,
+    ) -> Result<&DepositTransaction, LedgerError> {
+        let deposit_transaction = self
+            .deposits
+            .get(&transaction_id)
+            .ok_or(LedgerError::TransactionNotFound(transaction_id, client_id))?;
+
+        if deposit_transaction.client_id != client_id {
+            return Err(LedgerError::TransactionNotFound(transaction_id, client_id));
+        }
+
+        Ok(deposit_transaction)
+    }
+
     fn handle_deposit(&mut self, transaction: DepositTransaction) -> Result<(), LedgerError> {
-        if self.deposits.contains_key(&transaction.id) {
+        if self.has_transaction_been_processed(&transaction.id) {
             return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
         }
 
@@ -78,12 +97,11 @@ impl Ledger {
     }
 
     fn handle_withdrawal(&mut self, transaction: WithdrawalTransaction) -> Result<(), LedgerError> {
-        if self.deposits.contains_key(&transaction.id) {
+        if self.has_transaction_been_processed(&transaction.id) {
             return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
         }
 
         let client_id = transaction.client_id;
-
         let account = self
             .accounts
             .get_mut(&client_id)
@@ -93,45 +111,32 @@ impl Ledger {
             .withdraw(transaction.amount)
             .map_err(|e| LedgerError::WithdrawalError(client_id, e.to_string()))?;
 
+        self.withdrawal_ids.insert(transaction.id);
         Ok(())
     }
 
     fn handle_dispute(&mut self, dispute: DisputeTransaction) -> Result<(), LedgerError> {
-        let deposit = self.deposits.get(&dispute.original_transaction_id).ok_or(
-            LedgerError::NoDisputableTransactionFound(
-                dispute.original_transaction_id,
-                dispute.client_id,
-            ),
-        )?;
+        let (client_id, transaction_id) = (dispute.client_id, dispute.original_transaction_id);
+        let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
-        if deposit.client_id != dispute.client_id {
-            return Err(LedgerError::NoDisputableTransactionFound(
-                dispute.original_transaction_id,
-                dispute.client_id,
-            ));
-        }
-
-        if self.is_transaction_disputed(dispute.original_transaction_id) {
+        if self.is_transaction_disputed(transaction_id) {
             return Err(LedgerError::TransactionAlreadyDisputed(
-                dispute.original_transaction_id,
-                dispute.client_id,
+                transaction_id,
+                client_id,
             ));
         }
 
+        let amount = deposit.amount;
         let account = self
             .accounts
-            .get_mut(&deposit.client_id)
-            .ok_or(LedgerError::AccountNotFound(deposit.client_id))?;
+            .get_mut(&client_id)
+            .ok_or(LedgerError::AccountNotFound(client_id))?;
 
-        account.open_dispute(deposit.amount).map_err(|e| {
-            LedgerError::DisputeError(
-                dispute.original_transaction_id,
-                dispute.client_id,
-                e.to_string(),
-            )
-        })?;
+        account
+            .open_dispute(amount)
+            .map_err(|e| LedgerError::DisputeError(transaction_id, client_id, e.to_string()))?;
 
-        self.open_disputes.insert(dispute.original_transaction_id);
+        self.open_disputes.insert(transaction_id);
 
         Ok(())
     }
@@ -140,85 +145,49 @@ impl Ledger {
         &mut self,
         resolution: ResolveTransaction,
     ) -> Result<(), LedgerError> {
-        let deposit = self
-            .deposits
-            .get(&resolution.original_transaction_id)
-            .ok_or(LedgerError::NoDisputableTransactionFound(
-                resolution.original_transaction_id,
-                resolution.client_id,
-            ))?;
+        let (client_id, transaction_id) =
+            (resolution.client_id, resolution.original_transaction_id);
+        let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
-        if deposit.client_id != resolution.client_id {
-            return Err(LedgerError::NoDisputableTransactionFound(
-                resolution.original_transaction_id,
-                resolution.client_id,
-            ));
+        if !self.is_transaction_disputed(transaction_id) {
+            return Err(LedgerError::DisputeNotFound(transaction_id, client_id));
         }
 
-        if !self.is_transaction_disputed(resolution.original_transaction_id) {
-            return Err(LedgerError::NoDisputeFoundToResolve(
-                resolution.original_transaction_id,
-                resolution.client_id,
-            ));
-        }
-
+        let amount = deposit.amount;
         let account = self
             .accounts
-            .get_mut(&deposit.client_id)
-            .ok_or(LedgerError::AccountNotFound(deposit.client_id))?;
+            .get_mut(&client_id)
+            .ok_or(LedgerError::AccountNotFound(client_id))?;
 
-        account.resolve_dispute(deposit.amount).map_err(|e| {
-            LedgerError::ResolutionError(
-                resolution.original_transaction_id,
-                resolution.client_id,
-                e.to_string(),
-            )
-        })?;
+        account
+            .resolve_dispute(amount)
+            .map_err(|e| LedgerError::ResolutionError(transaction_id, client_id, e.to_string()))?;
 
-        self.open_disputes
-            .remove(&resolution.original_transaction_id);
+        self.open_disputes.remove(&transaction_id);
 
         Ok(())
     }
 
     fn handle_chargeback(&mut self, chargeback: ChargebackTransaction) -> Result<(), LedgerError> {
-        let deposit = self
-            .deposits
-            .get(&chargeback.original_transaction_id)
-            .ok_or(LedgerError::NoDisputableTransactionFound(
-                chargeback.original_transaction_id,
-                chargeback.client_id,
-            ))?;
+        let (client_id, transaction_id) =
+            (chargeback.client_id, chargeback.original_transaction_id);
+        let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
-        if deposit.client_id != chargeback.client_id {
-            return Err(LedgerError::NoDisputableTransactionFound(
-                chargeback.original_transaction_id,
-                chargeback.client_id,
-            ));
+        if !self.is_transaction_disputed(transaction_id) {
+            return Err(LedgerError::DisputeNotFound(transaction_id, client_id));
         }
 
-        if !self.is_transaction_disputed(chargeback.original_transaction_id) {
-            return Err(LedgerError::NoDisputeFoundForChargeback(
-                chargeback.original_transaction_id,
-                chargeback.client_id,
-            ));
-        }
-
+        let amount = deposit.amount;
         let account = self
             .accounts
-            .get_mut(&deposit.client_id)
-            .ok_or(LedgerError::AccountNotFound(deposit.client_id))?;
+            .get_mut(&chargeback.client_id)
+            .ok_or(LedgerError::AccountNotFound(chargeback.client_id))?;
 
-        account.handle_chargeback(deposit.amount).map_err(|e| {
-            LedgerError::ChargebackError(
-                chargeback.original_transaction_id,
-                chargeback.client_id,
-                e.to_string(),
-            )
-        })?;
+        account
+            .handle_chargeback(amount)
+            .map_err(|e| LedgerError::ChargebackError(transaction_id, client_id, e.to_string()))?;
 
-        self.open_disputes
-            .remove(&chargeback.original_transaction_id);
+        self.open_disputes.remove(&transaction_id);
 
         Ok(())
     }
@@ -398,7 +367,7 @@ mod tests {
         }
 
         #[test]
-        fn test_withdrawal_fails_if_transaction_id_has_been_used() {
+        fn test_withdrawal_fails_if_transaction_id_has_been_used_by_deposit() {
             let client_1 = 1_001;
 
             let (ledger, _) = ledger_with_transactions(vec![
@@ -417,6 +386,34 @@ mod tests {
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
                 Money::parse_unchecked("100")
+            );
+        }
+
+        #[test]
+        fn test_withdrawal_fails_if_transaction_id_has_been_used_by_withdrawal() {
+            let client_1 = 1_001;
+
+            let (ledger, _) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(
+                    client_1,
+                    9_001,
+                    Money::parse_unchecked("100"),
+                )),
+                Transaction::Withdrawal(WithdrawalTransaction::new(
+                    client_1,
+                    9_002,
+                    Money::parse_unchecked("50"),
+                )),
+                Transaction::Withdrawal(WithdrawalTransaction::new(
+                    client_1,
+                    9_002,
+                    Money::parse_unchecked("50"),
+                )),
+            ]);
+
+            assert_eq!(
+                ledger.accounts.get(&client_1).unwrap().total_balance(),
+                Money::parse_unchecked("50")
             );
         }
 
@@ -636,9 +633,9 @@ mod tests {
                 .expect_err("expected the dispute transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "no disputable transaction found for transaction 9001 of client 1002"
-                ),
+                error
+                    .to_string()
+                    .starts_with("no transaction found for id 9001 of client 1002"),
                 "unexpected error: {error}"
             );
 
@@ -690,9 +687,9 @@ mod tests {
                 .expect_err("expected the dispute transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "no disputable transaction found for transaction 9002 of client 1001"
-                ),
+                error
+                    .to_string()
+                    .starts_with("no transaction found for id 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 
@@ -728,9 +725,9 @@ mod tests {
                 .expect_err("expected the dispute transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "no disputable transaction found for transaction 9002 of client 1001"
-                ),
+                error
+                    .to_string()
+                    .starts_with("no transaction found for id 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 
@@ -851,9 +848,9 @@ mod tests {
                 .expect_err("expected the second dispute resolution transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "resolving the dispute for transaction 9002 of client 1001 but there was no dispute"
-                ),
+                error
+                    .to_string()
+                    .starts_with("dispute not found for transaction 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 
@@ -894,9 +891,9 @@ mod tests {
                 .expect_err("expected the dispute resolution transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "resolving the dispute for transaction 9002 of client 1001 but there was no dispute"
-                ),
+                error
+                    .to_string()
+                    .starts_with("dispute not found for transaction 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 
@@ -974,9 +971,9 @@ mod tests {
                 .expect_err("expected the second chargeback transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "chargeback for transaction 9002 of client 1001 failed because there was no open dispute"
-                ),
+                error
+                    .to_string()
+                    .starts_with("dispute not found for transaction 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 
@@ -1017,9 +1014,9 @@ mod tests {
                 .expect_err("expected the chargeback transaction to fail");
 
             assert!(
-                error.to_string().starts_with(
-                    "chargeback for transaction 9002 of client 1001 failed because there was no open dispute"
-                ),
+                error
+                    .to_string()
+                    .starts_with("dispute not found for transaction 9002 of client 1001"),
                 "unexpected error: {error}"
             );
 

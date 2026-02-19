@@ -3,3 +3,8 @@ deposit, 1, 1, 1.0
 deposit, 1, 1, 1.0
 deposit, 2, 2, 1.0
 withdrawal, 2, 2, 1.0
+deposit, 3, 3, 1.0
+withdrawal, 3, 3, 1.0
+deposit, 4, 4, 1.0
+withdrawal, 4, 5, 1.0
+deposit, 4, 5, 1.0
