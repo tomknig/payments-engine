@@ -4,7 +4,7 @@
 
 ### Amount of Money
 
-The [domain model for money](./src/models/money.rs) is designed to have a precision of four decimals. I decided to go with a `u64` for the underlying datatype for storing actual monetary data. It therefore uses `10^4-1 ~= 14 bits` for the fractional part and the remaining `64 - 14 = 50 bits` for the integer part. I am therefore assuming that no single transaction, nor total account balance ever exceeds `2^50 ~= 10^15`, which I think is a fair assumption to make for this toy engine.
+The [domain model for money](./src/models/money.rs) is designed to have a precision of four decimals. I decided to go with a `u64` for the underlying datatype for storing actual monetary data. It therefore uses `10^4-1 ~= 14 bits` for the fractional part and the remaining `64 - 14 = 50 bits` for the integer part. I am therefore assuming that no single transaction, nor total account balance ever exceeds `2^50 ~= 10^15`, or to be precise, `1844674407370954.9999`, which I think is a fair assumption to make for this toy engine.
 
 ### Dispute Management
 

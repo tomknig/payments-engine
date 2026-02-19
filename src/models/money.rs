@@ -12,7 +12,7 @@ pub enum MoneyError {
 
 #[derive(Clone, Copy, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Money {
-    pub value: u64,
+    value: u64,
 }
 
 impl Money {
@@ -49,6 +49,12 @@ impl Money {
         let scale = 10u64
             .checked_pow(PRECISION as u32)
             .ok_or_else(|| MoneyError::ParseError("precision too large".to_string()))?;
+
+        if value > u64::MAX / scale - 1 {
+            return Err(MoneyError::ParseError(
+                "value exceeds maximum value".to_string(),
+            ));
+        }
 
         let mut value = value.checked_mul(scale).ok_or_else(|| {
             MoneyError::ParseError("integer part exceeds maximum value".to_string())
@@ -189,26 +195,38 @@ mod tests {
         }
 
         #[test]
-        /// In this test, we check for the exact boundary of an integer that can be passed
-        /// That is, 2^64 / 10^4
-        /// This is the last whole number that should succeed to parse
+        /// The exact boundary of an integer that can be passed
+        /// That is: 2^64 / 10^4 - 1
         fn test_max_integer_precision_parses_successfully() {
-            let money = Money::parse("1844674407370955");
-            assert_eq!(money.unwrap().value, 18446744073709550000);
+            let money = Money::parse("1844674407370954");
+            assert_eq!(money.unwrap().value, 18446744073709540000);
         }
 
         #[test]
-        /// In this test, we check for the exact boundary of an integer that can be passed
-        /// That is, 2^64 / 10^4 + 1_0000
-        /// This is the first whole number that should fail, but not panic on overflow
-        fn test_overflow_at_max_integer_precision_doesnt_panic() {
-            // =
-            let money = Money::parse("1844674407370956");
+        fn test_max_number_parses_successfully() {
+            let money = Money::parse("1844674407370954.9999");
+            assert_eq!(money.unwrap().value, 18446744073709549999);
+        }
+
+        #[test]
+        /// The exact boundary of an integer that can not be passed
+        /// That is: 2^64 / 10^4
+        fn test_fisrt_integer_that_exceeds_size() {
+            let money = Money::parse("1844674407370955");
             assert!(money.is_err());
         }
 
         #[test]
-        /// In this test, we check for 2^64 to gracefully fail, i.e., don't panic on overflow
+        /// The exact boundary of the total decimal that can be passed
+        /// That is, 2^64 / 10^4 + 0.9999
+        fn test_overflow_at_max_integer_precision_doesnt_panic() {
+            // =
+            let money = Money::parse("1844674407370955.9999");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        /// 2^64 should gracefully fail, i.e., don't panic on overflow
         fn test_overflow_at_max_precision_doesnt_panic() {
             let money = Money::parse("18446744073709551616");
             assert!(money.is_err());
