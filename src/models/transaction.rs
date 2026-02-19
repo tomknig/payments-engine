@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+use std::fmt;
+
 use super::client::ClientId;
 use super::money::Money;
 
@@ -9,7 +12,30 @@ pub enum Transaction {
     Chargeback(ChargebackTransaction),
 }
 
-pub type TransactionId = u32;
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct TransactionId(u32);
+
+impl TransactionId {
+    pub fn new(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+}
+
+impl From<u32> for TransactionId {
+    fn from(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl fmt::Display for TransactionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
 
 pub struct DepositTransaction {
     pub client_id: ClientId,

@@ -235,9 +235,12 @@ mod tests {
         fn test_process_a_single_deposit_transaction() {
             let client_1 = ClientId::new(1_001);
 
-            let (ledger, _) = ledger_with_transactions(vec![Transaction::Deposit(
-                DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
-            )]);
+            let (ledger, _) =
+                ledger_with_transactions(vec![Transaction::Deposit(DepositTransaction::new(
+                    client_1,
+                    TransactionId::new(9_001),
+                    Money::parse_unchecked("100"),
+                ))]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
@@ -252,12 +255,12 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
             ]);
@@ -275,12 +278,12 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
             ]);
@@ -299,32 +302,32 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_2,
-                    9_003,
+                    TransactionId::new(9_003),
                     Money::parse_unchecked("300"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_2,
-                    9_004,
+                    TransactionId::new(9_004),
                     Money::parse_unchecked("400"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_005,
+                    TransactionId::new(9_005),
                     Money::parse_unchecked("500"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_2,
-                    9_006,
+                    TransactionId::new(9_006),
                     Money::parse_unchecked("600"),
                 )),
             ]);
@@ -350,12 +353,12 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
             ]);
@@ -373,12 +376,12 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("50"),
                 )),
             ]);
@@ -396,17 +399,17 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
             ]);
@@ -422,7 +425,11 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![Transaction::Withdrawal(
-                WithdrawalTransaction::new(client_1, 9_002, Money::parse_unchecked("50")),
+                WithdrawalTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                    Money::parse_unchecked("50"),
+                ),
             )]);
 
             assert_eq!(ledger.accounts.len(), 0);
@@ -448,12 +455,12 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
             ]);
@@ -484,18 +491,18 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_003,
+                    TransactionId::new(9_003),
                     Money::parse_unchecked("250"),
                 )),
             ]);
@@ -539,10 +546,10 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
@@ -567,16 +574,16 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("50"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
             let error = results
@@ -615,15 +622,15 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("50"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_2,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_2, 9_001)),
+                Transaction::Dispute(DisputeTransaction::new(client_2, TransactionId::new(9_001))),
             ]);
 
             let error = results
@@ -669,15 +676,15 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
             let error = results
@@ -712,10 +719,10 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
             let error = results
@@ -750,15 +757,15 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Withdrawal(WithdrawalTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("50"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_001)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
             let error = results
@@ -797,16 +804,16 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
-                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
@@ -828,17 +835,17 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
-                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
-                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
             let error = results
@@ -873,15 +880,15 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Resolve(ResolveTransaction::new(client_1, 9_002)),
+                Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
             let error = results
@@ -920,16 +927,19 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
-                Transaction::Chargeback(ChargebackTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Chargeback(ChargebackTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                )),
             ]);
 
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
@@ -951,17 +961,23 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
-                Transaction::Chargeback(ChargebackTransaction::new(client_1, 9_002)),
-                Transaction::Chargeback(ChargebackTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Chargeback(ChargebackTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                )),
+                Transaction::Chargeback(ChargebackTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                )),
             ]);
 
             let error = results
@@ -996,15 +1012,18 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Chargeback(ChargebackTransaction::new(client_1, 9_002)),
+                Transaction::Chargeback(ChargebackTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                )),
             ]);
 
             let error = results
@@ -1039,19 +1058,22 @@ mod tests {
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_001,
+                    TransactionId::new(9_001),
                     Money::parse_unchecked("100"),
                 )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_002,
+                    TransactionId::new(9_002),
                     Money::parse_unchecked("200"),
                 )),
-                Transaction::Dispute(DisputeTransaction::new(client_1, 9_002)),
-                Transaction::Chargeback(ChargebackTransaction::new(client_1, 9_002)),
+                Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
+                Transaction::Chargeback(ChargebackTransaction::new(
+                    client_1,
+                    TransactionId::new(9_002),
+                )),
                 Transaction::Deposit(DepositTransaction::new(
                     client_1,
-                    9_003,
+                    TransactionId::new(9_003),
                     Money::parse_unchecked("300"),
                 )),
             ]);

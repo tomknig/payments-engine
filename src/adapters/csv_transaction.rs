@@ -14,7 +14,7 @@ impl TryFrom<CsvTransaction> for Transaction {
         let transaction = match csv_transaction.transaction_type {
             CsvTransactionType::Deposit => Transaction::Deposit(DepositTransaction {
                 client_id: csv_transaction.client_id.into(),
-                id: csv_transaction.transaction_id,
+                id: csv_transaction.transaction_id.into(),
                 amount: csv_transaction
                     .amount
                     .try_into()
@@ -22,7 +22,7 @@ impl TryFrom<CsvTransaction> for Transaction {
             }),
             CsvTransactionType::Withdrawal => Transaction::Withdrawal(WithdrawalTransaction {
                 client_id: csv_transaction.client_id.into(),
-                id: csv_transaction.transaction_id,
+                id: csv_transaction.transaction_id.into(),
                 amount: csv_transaction
                     .amount
                     .try_into()
@@ -30,15 +30,15 @@ impl TryFrom<CsvTransaction> for Transaction {
             }),
             CsvTransactionType::Dispute => Transaction::Dispute(DisputeTransaction {
                 client_id: csv_transaction.client_id.into(),
-                original_transaction_id: csv_transaction.transaction_id,
+                original_transaction_id: csv_transaction.transaction_id.into(),
             }),
             CsvTransactionType::Resolve => Transaction::Resolve(ResolveTransaction {
                 client_id: csv_transaction.client_id.into(),
-                original_transaction_id: csv_transaction.transaction_id,
+                original_transaction_id: csv_transaction.transaction_id.into(),
             }),
             CsvTransactionType::Chargeback => Transaction::Chargeback(ChargebackTransaction {
                 client_id: csv_transaction.client_id.into(),
-                original_transaction_id: csv_transaction.transaction_id,
+                original_transaction_id: csv_transaction.transaction_id.into(),
             }),
         };
 
