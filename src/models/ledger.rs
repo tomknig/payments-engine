@@ -31,6 +31,7 @@ pub enum LedgerError {
     TransactionAlreadyProcessed(TransactionId),
 }
 
+#[derive(Default)]
 pub struct Ledger {
     accounts: HashMap<ClientId, Account>,
     deposits: HashMap<TransactionId, DepositTransaction>,
@@ -40,12 +41,7 @@ pub struct Ledger {
 
 impl Ledger {
     pub fn new() -> Self {
-        Ledger {
-            accounts: HashMap::new(),
-            deposits: HashMap::new(),
-            open_disputes: HashSet::new(),
-            withdrawal_ids: HashSet::new(),
-        }
+        Ledger::default()
     }
 
     pub fn accounts(&self) -> impl Iterator<Item = &Account> {
@@ -200,12 +196,6 @@ impl Ledger {
             Transaction::Resolve(transaction) => self.handle_dispute_resolution(transaction),
             Transaction::Chargeback(transaction) => self.handle_chargeback(transaction),
         }
-    }
-}
-
-impl Default for Ledger {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
