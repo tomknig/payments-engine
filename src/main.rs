@@ -18,14 +18,12 @@ fn main() -> Result<()> {
 
     let file = File::open(transactions_file_path)?;
     for result in csv::read(file) {
-        let parse_result = result;
-
-        if let Err(err) = parse_result {
+        if let Err(err) = result {
             eprintln!("Skipping malformed transaction: {}", err);
             continue;
         }
 
-        let transaction_result = parse_result.unwrap().try_into();
+        let transaction_result = result.unwrap().try_into();
 
         if let Err(err) = transaction_result {
             eprintln!("Skipping non convertible transaction: {}", err);
