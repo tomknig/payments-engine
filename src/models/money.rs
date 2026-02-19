@@ -98,7 +98,7 @@ impl ops::Add for Money {
     type Output = Money;
 
     fn add(self, other: Money) -> Self::Output {
-        Money(self.0 + other.0)
+        Money(self.0.saturating_add(other.0))
     }
 }
 
@@ -106,7 +106,7 @@ impl ops::Sub for Money {
     type Output = Money;
 
     fn sub(self, other: Money) -> Self::Output {
-        Money(self.0 - other.0)
+        Money(self.0.saturating_sub(other.0))
     }
 }
 
@@ -224,6 +224,26 @@ mod tests {
         fn test_overflow_at_max_precision_doesnt_panic() {
             let money = Money::parse("18446744073709551616");
             assert!(money.is_err());
+        }
+    }
+
+    mod arithmetic {
+        use super::*;
+
+        #[test]
+        fn test_addition_doesnt_panic() {
+            let money = Money::parse("1844674407370954").unwrap();
+            let more_money = Money::parse("1844674407370954").unwrap();
+            let sum = money + more_money;
+            assert_eq!(sum.0, 18446744073709551615);
+        }
+
+        #[test]
+        fn test_subtraction_doesnt_panic() {
+            let money = Money::parse("1").unwrap();
+            let more_money = Money::parse("1844674407370954").unwrap();
+            let diff = money - more_money;
+            assert_eq!(diff.0, 0);
         }
     }
 
