@@ -11,6 +11,7 @@ The [domain model for money](./src/models/money.rs) is designed to have a precis
 1. I've decided to accept disputes only when they are targeting deposit transactions. That means, a withdrawal transaction can not be disputed by a client. I came to this assumption from common sense as clients probably only dispute when money is debited from their payment method and not when money is credited to it. Additionally, it is stated as a requirement that "the clients available funds should decrease by the amount disputed" which would be incompatible with disputing withdrawals. In the real world outside of this toy engine, disputing withdrawals e.g. when accounts have been hijacked, is most likely a thing though.
 1. Transactions can be disputed more than once, but only if they were resolved. I decided to keep transactions in the pool for disputable transactions even after resolution, so that they can potentially be disputed multiple times. A chargeback is naturally final though, because it freezes the account that has issued the original transaction and dispute.
 1. When less money is available than a dispute would demand, I let the dispute fail. I am assuming that partial disputes are not a thing for this toy engine. Think: `Deposit(id: a, amount: 10) -> Withdraw(b, 5) -> Dispute(a)`. This dispute would require a remaining balance of `10` in order to put sufficient funds on hold and to conduct a chargeback later. So due to the preceding withdrawal of `5`, the balance would be insufficient and the dispute fails.
+1. Frozen accounts accept no further transactions at all, not even deposits.
 
 ### Input
 
@@ -21,6 +22,22 @@ While handling some invalid input formats, I generally assume `transaction.csv` 
 - amount has a maximum of four fractional digits
 
 Other inputs are not accepted by the engine and skipped.
+
+## Correctness
+
+My interpretation of the semantics of the different transaction types are encoded in unit tests of the [account](./src/models/account.rs) and [ledger model](./src/models/ledger.rs).
+In addition to unit tests, more complex interactions of different transaction types, such as "a chargeback can only be executed once", are encoded in integration tests to be found in [`tests/fixtures`](./tests/fixtures). The integration tests also serve the purpose of testing the final interface of this application to be compliant with the requirement. The sample data in the `*_transaction.csv` files and the assertions in the `*_accounts.csv` files have been hand-crafted.
+
+## Safety
+
+The [domain model for money](./src/models/money.rs) implements saturating math, which sounds dangerous in the context of a payments engine. Two cases are worth to look at:
+
+1. Saturating sub masks underflows: Subtraction of monetary values are implemented in the [account model](./src/models/account.rs), each of which is guarded by a previous check and supported by unit tests. Therefore, while it is a potential issue of the money model, it doesn't surface in this application.
+2. Saturating add masks overflows: Depositing more than the maximum amount of money representable, if conducted in chunks of representable values, would result in the account balancing saturating at the maximum number. This is incorrect behavior, but explicitly stated as an assumption this application operates under. If the requirement changes, i.e., more money would need to become representable, one of two solutions could be implemented: 1) Increasing the width of the money model to `u128`, and/or 2) failing when the amount exceeds representable values.
+
+Why an own type for the decimal? We need two non-standard properties anyway: It should be non-negative and it must support exactly four fractional digits. The effort implementing a new type on top of `rust_decimal` felt comparable to implementing the money model implemented here, but yields worse performance. With the assumption about the max amount of money above, `rust_decimal` uses twice the memory compared to this application-specific implementation.
+
+## Efficiency
 
 ## AI Usage
 
