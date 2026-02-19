@@ -26,10 +26,13 @@ impl Money {
 
     pub fn parse(s: &str) -> Result<Self, MoneyError> {
         let trimmed_value = s.trim();
-        let (integer_slice, fraction_slice) = match trimmed_value.split_once('.') {
-            Some((i, f)) => (i, f),
-            None => (trimmed_value, ""),
-        };
+        let mut parts = trimmed_value.split('.');
+        let integer_slice = parts.next().unwrap_or("");
+        let fraction_slice = parts.next().unwrap_or("");
+
+        if parts.next().is_some() {
+            return Err(MoneyError::ParseError("multiple dots are not allowed".to_string()));
+        }
 
         let integer_part = integer_slice
             .parse::<u64>()
@@ -114,57 +117,116 @@ impl fmt::Debug for Money {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_integer() {
-        let money = Money::parse_unchecked("123");
-        assert_eq!(money.value, 123_0000);
+    mod parse{
+        use super::*;
+
+        #[test]
+        fn test_parse_integer() {
+            let money = Money::parse("1");
+            assert!(money.is_ok());
+            assert_eq!(money.unwrap().value, 1_0000);
+        }
+
+        #[test]
+        fn test_parse_valid_decimal() {
+            let money = Money::parse("1.0");
+            assert!(money.is_ok());
+            assert_eq!(money.unwrap().value, 1_0000);
+        }
+
+        #[test]
+        fn test_parse_too_many_decimal_places() {
+            let money = Money::parse("1.23456");
+            assert!(money.is_ok());
+            assert_eq!(money.unwrap().value, 1_2345);
+        }
+
+        #[test]
+        fn test_parse_char_in_fraction() {
+            let money = Money::parse("1.0a0");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        fn test_parse_negative_number() {
+            let money = Money::parse("-1.0");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        fn test_parse_negative_number_with_char_in_fraction() {
+            let money = Money::parse("-1.0a0");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        fn test_parse_char_in_integer() {
+            let money = Money::parse("a.0a0");
+            assert!(money.is_err());
+        }
+
+        #[test]
+        fn test_parse_multiple_dots() {
+            let money = Money::parse("1.0.");
+            assert!(money.is_err());
+        }
     }
 
-    #[test]
-    fn test_parse_fraction() {
-        let money = Money::parse_unchecked("123.4567");
-        assert_eq!(money.value, 123_4567);
-    }
+    mod parse_unchecked {
+        use super::*;
 
-    #[test]
-    fn test_parse_fraction_with_leading_zeros() {
-        let money = Money::parse_unchecked("123.0007");
-        assert_eq!(money.value, 123_0007);
-    }
+        #[test]
+        fn test_parse_integer() {
+            let money = Money::parse_unchecked("123");
+            assert_eq!(money.value, 123_0000);
+        }
 
-    #[test]
-    fn test_parse_fraction_with_trailing_zeros() {
-        let money = Money::parse_unchecked("123.4560");
-        assert_eq!(money.value, 123_4560);
-    }
+        #[test]
+        fn test_parse_fraction() {
+            let money = Money::parse_unchecked("123.4567");
+            assert_eq!(money.value, 123_4567);
+        }
 
-    #[test]
-    fn test_parse_fraction_with_leading_and_trailing_zeros() {
-        let money = Money::parse_unchecked("123.0560");
-        assert_eq!(money.value, 123_0560);
-    }
+        #[test]
+        fn test_parse_fraction_with_leading_zeros() {
+            let money = Money::parse_unchecked("123.0007");
+            assert_eq!(money.value, 123_0007);
+        }
 
-    #[test]
-    fn test_display_zero_fraction() {
-        let money = Money { value: 123_0000 };
-        assert_eq!(money.to_string(), "123.0000");
-    }
+        #[test]
+        fn test_parse_fraction_with_trailing_zeros() {
+            let money = Money::parse_unchecked("123.4560");
+            assert_eq!(money.value, 123_4560);
+        }
 
-    #[test]
-    fn test_display_one_decimal_place() {
-        let money = Money { value: 123_4000 };
-        assert_eq!(money.to_string(), "123.4000");
-    }
+        #[test]
+        fn test_parse_fraction_with_leading_and_trailing_zeros() {
+            let money = Money::parse_unchecked("123.0560");
+            assert_eq!(money.value, 123_0560);
+        }
 
-    #[test]
-    fn test_display_leading_zeros_in_fraction() {
-        let money = Money { value: 123_0007 };
-        assert_eq!(money.to_string(), "123.0007");
-    }
+        #[test]
+        fn test_display_zero_fraction() {
+            let money = Money { value: 123_0000 };
+            assert_eq!(money.to_string(), "123.0000");
+        }
 
-    #[test]
-    fn test_display_full_precision() {
-        let money = Money { value: 123_4567 };
-        assert_eq!(money.to_string(), "123.4567");
+        #[test]
+        fn test_display_one_decimal_place() {
+            let money = Money { value: 123_4000 };
+            assert_eq!(money.to_string(), "123.4000");
+        }
+
+        #[test]
+        fn test_display_leading_zeros_in_fraction() {
+            let money = Money { value: 123_0007 };
+            assert_eq!(money.to_string(), "123.0007");
+        }
+
+        #[test]
+        fn test_display_full_precision() {
+            let money = Money { value: 123_4567 };
+            assert_eq!(money.to_string(), "123.4567");
+        }
     }
 }

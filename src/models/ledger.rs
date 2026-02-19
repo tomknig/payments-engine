@@ -31,6 +31,8 @@ pub enum LedgerError {
     NoDisputeFoundForChargeback(TransactionId, ClientId),
     #[error("chargeback for transaction {0} of client {1} failed with reason: {2}")]
     ChargebackError(TransactionId, ClientId, String),
+    #[error("transaction {0} has already been processed")]
+    TransactionAlreadyProcessed(TransactionId),
 }
 
 pub struct Ledger {
@@ -57,6 +59,10 @@ impl Ledger {
     }
 
     fn handle_deposit(&mut self, transaction: DepositTransaction) -> Result<(), LedgerError> {
+        if self.deposits.contains_key(&transaction.id) {
+            return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
+        }
+
         let client_id = transaction.client_id;
         let account = self
             .accounts
@@ -72,6 +78,10 @@ impl Ledger {
     }
 
     fn handle_withdrawal(&mut self, transaction: WithdrawalTransaction) -> Result<(), LedgerError> {
+        if self.deposits.contains_key(&transaction.id) {
+            return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
+        }
+
         let client_id = transaction.client_id;
 
         let account = self
@@ -251,6 +261,7 @@ mod tests {
 
     mod deposits {
         use super::*;
+
         #[test]
         fn test_process_a_single_deposit_transaction() {
             let client_1 = 1_001;
@@ -258,6 +269,25 @@ mod tests {
             let (ledger, _) = ledger_with_transactions(vec![Transaction::Deposit(
                 DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
             )]);
+
+            assert_eq!(
+                ledger.accounts.get(&client_1).unwrap().total_balance(),
+                Money::parse_unchecked("100")
+            );
+        }
+
+        #[test]
+        fn test_skip_repeated_transaction_id() {
+            let client_1 = 1_001;
+
+            let (ledger, _) = ledger_with_transactions(vec![
+                Transaction::Deposit(
+                DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
+            ),
+                Transaction::Deposit(
+                DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
+            ),
+            ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
@@ -360,6 +390,29 @@ mod tests {
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
                 Money::parse_unchecked("50")
+            );
+        }
+
+        #[test]
+        fn test_withdrawal_fails_if_transaction_id_has_been_used () {
+            let client_1 = 1_001;
+
+            let (ledger, _) = ledger_with_transactions(vec![
+                Transaction::Deposit(DepositTransaction::new(
+                    client_1,
+                    9_001,
+                    Money::parse_unchecked("100"),
+                )),
+                Transaction::Withdrawal(WithdrawalTransaction::new(
+                    client_1,
+                    9_001,
+                    Money::parse_unchecked("50"),
+                )),
+            ]);
+
+            assert_eq!(
+                ledger.accounts.get(&client_1).unwrap().total_balance(),
+                Money::parse_unchecked("100")
             );
         }
 

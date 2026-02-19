@@ -1,0 +1,7 @@
+type, client, tx, amount
+deposit, 1, 1, 1.0
+deposit, 1, 4294967295, 1.0
+deposit, 65535, 1024, 1.0
+deposit, 65535, 222666333, 1.0
+deposit, 4096, 128, 1.0
+deposit, 4096, 9999, 1.0
