@@ -8,7 +8,7 @@ The [domain model for money](./src/models/money.rs) is designed to have a precis
 
 ### Dispute Management
 
-1. I've decided to accept disputes only when they are targetting deposit transactions. That means, a withdrawal transaction can not be disputed by a client. I came to this assumption from common sense as clients probably only dispute when money is debited from their payment method and not when money is credited to it. Additionally, it is stated as a requirement that "the clients available funds should decrease by the amount disputed" which would be incompatible with disputing withdrawals. In the real world outside of this toy engine, disputing withdrawals e.g. when accounts have been hijacked, is most likely a thing though.
+1. I've decided to accept disputes only when they are targeting deposit transactions. That means, a withdrawal transaction can not be disputed by a client. I came to this assumption from common sense as clients probably only dispute when money is debited from their payment method and not when money is credited to it. Additionally, it is stated as a requirement that "the clients available funds should decrease by the amount disputed" which would be incompatible with disputing withdrawals. In the real world outside of this toy engine, disputing withdrawals e.g. when accounts have been hijacked, is most likely a thing though.
 1. Transactions can be disputed more than once, but only if they were resolved. I decided to keep transactions in the pool for disputable transactions even after resolution, so that they can potentially be disputed multiple times. A chargeback is naturally final though, because it freezes the account that has issued the original transaction and dispute.
 
 ### Input
@@ -74,7 +74,7 @@ If anything, it’s the most canonical name for that concept.
 
 #### Refactor rushed test cases
 
-During development of the [domain model for money](./src/models/money.rs), I lazily used one test for multiple assertions that would fail for different reasons. Before commiting this, I had ChatGPT refactor this into four separate unit tests.
+During development of the [domain model for money](./src/models/money.rs), I lazily used one test for multiple assertions that would fail for different reasons. Before committing this, I had ChatGPT refactor this into four separate unit tests.
 
 ``````md
 Make this four separate unit tests:

@@ -205,7 +205,7 @@ mod tests {
         #[test]
         /// The exact boundary of an integer that can not be passed
         /// That is: 2^64 / 10^4
-        fn test_fisrt_integer_that_exceeds_size() {
+        fn test_first_integer_that_exceeds_size() {
             let money = Money::parse("1844674407370955");
             assert!(money.is_err());
         }
