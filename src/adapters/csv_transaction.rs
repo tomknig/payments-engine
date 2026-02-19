@@ -13,7 +13,7 @@ impl TryFrom<CsvTransaction> for Transaction {
     fn try_from(csv_transaction: CsvTransaction) -> Result<Self, Self::Error> {
         let transaction = match csv_transaction.transaction_type {
             CsvTransactionType::Deposit => Transaction::Deposit(DepositTransaction {
-                client_id: csv_transaction.client_id,
+                client_id: csv_transaction.client_id.into(),
                 id: csv_transaction.transaction_id,
                 amount: csv_transaction
                     .amount
@@ -21,7 +21,7 @@ impl TryFrom<CsvTransaction> for Transaction {
                     .context("Failed to parse amount")?,
             }),
             CsvTransactionType::Withdrawal => Transaction::Withdrawal(WithdrawalTransaction {
-                client_id: csv_transaction.client_id,
+                client_id: csv_transaction.client_id.into(),
                 id: csv_transaction.transaction_id,
                 amount: csv_transaction
                     .amount
@@ -29,15 +29,15 @@ impl TryFrom<CsvTransaction> for Transaction {
                     .context("Failed to parse amount")?,
             }),
             CsvTransactionType::Dispute => Transaction::Dispute(DisputeTransaction {
-                client_id: csv_transaction.client_id,
+                client_id: csv_transaction.client_id.into(),
                 original_transaction_id: csv_transaction.transaction_id,
             }),
             CsvTransactionType::Resolve => Transaction::Resolve(ResolveTransaction {
-                client_id: csv_transaction.client_id,
+                client_id: csv_transaction.client_id.into(),
                 original_transaction_id: csv_transaction.transaction_id,
             }),
             CsvTransactionType::Chargeback => Transaction::Chargeback(ChargebackTransaction {
-                client_id: csv_transaction.client_id,
+                client_id: csv_transaction.client_id.into(),
                 original_transaction_id: csv_transaction.transaction_id,
             }),
         };

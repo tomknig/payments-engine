@@ -233,7 +233,7 @@ mod tests {
 
         #[test]
         fn test_process_a_single_deposit_transaction() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![Transaction::Deposit(
                 DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
@@ -247,7 +247,7 @@ mod tests {
 
         #[test]
         fn test_skip_repeated_transaction_id() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -270,7 +270,7 @@ mod tests {
 
         #[test]
         fn test_process_multiple_deposit_transactions_of_one_user() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -293,8 +293,8 @@ mod tests {
 
         #[test]
         fn test_process_multiple_deposit_transactions_of_multiple_users() {
-            let client_1 = 1_001;
-            let client_2 = 1_002;
+            let client_1 = ClientId::new(1_001);
+            let client_2 = ClientId::new(1_002);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -345,7 +345,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_succeeds_if_funds_are_available() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -368,7 +368,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_fails_if_transaction_id_has_been_used_by_deposit() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -391,7 +391,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_fails_if_transaction_id_has_been_used_by_withdrawal() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -419,7 +419,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_fails_if_client_does_not_exist() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![Transaction::Withdrawal(
                 WithdrawalTransaction::new(client_1, 9_002, Money::parse_unchecked("50")),
@@ -443,7 +443,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_fails_if_amount_exceeds_balance() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -479,7 +479,7 @@ mod tests {
 
         #[test]
         fn test_withdrawal_after_a_dispute_has_been_opened() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -534,7 +534,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_with_existing_deposit() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -562,7 +562,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_already_disputed_deposit() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -609,8 +609,8 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_transaction_of_another_client() {
-            let client_1 = 1_001;
-            let client_2 = 1_002;
+            let client_1 = ClientId::new(1_001);
+            let client_2 = ClientId::new(1_002);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -664,7 +664,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_existing_but_incorrect_transaction() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -707,7 +707,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_non_existing_transaction() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -745,7 +745,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_existing_transaction_but_insufficient_balance() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -792,7 +792,7 @@ mod tests {
 
         #[test]
         fn test_resolve_an_open_and_unresolved_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -823,7 +823,7 @@ mod tests {
 
         #[test]
         fn test_resolve_a_resolved_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -868,7 +868,7 @@ mod tests {
 
         #[test]
         fn test_resolve_without_an_opened_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -915,7 +915,7 @@ mod tests {
 
         #[test]
         fn test_issue_a_chargeback_for_an_open_and_unresolved_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -946,7 +946,7 @@ mod tests {
 
         #[test]
         fn test_issue_a_chargeback_for_a_resolved_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -991,7 +991,7 @@ mod tests {
 
         #[test]
         fn test_issue_a_chargeback_without_an_opened_dispute() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(
@@ -1034,7 +1034,7 @@ mod tests {
 
         #[test]
         fn test_a_successful_chargeback_freezes_the_affected_account() {
-            let client_1 = 1_001;
+            let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
                 Transaction::Deposit(DepositTransaction::new(

@@ -140,7 +140,7 @@ mod tests {
 
         #[test]
         fn test_total_money_invariant() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("100");
             account.held = Money::parse_unchecked("10");
 
@@ -156,7 +156,7 @@ mod tests {
 
         #[test]
         fn test_deposit_money() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("0");
 
             let deposit_result = account.deposit(Money::parse_unchecked("42"));
@@ -170,7 +170,7 @@ mod tests {
 
         #[test]
         fn test_deposit_to_locked_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("0");
             account.locked = true;
 
@@ -189,7 +189,7 @@ mod tests {
 
         #[test]
         fn test_withdraw_available_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let withdrawal_result = account.withdraw(Money::parse_unchecked("2"));
@@ -203,7 +203,7 @@ mod tests {
 
         #[test]
         fn test_withdraw_all_available_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let withdrawal_result = account.withdraw(Money::parse_unchecked("42"));
@@ -217,7 +217,7 @@ mod tests {
 
         #[test]
         fn test_withdraw_unavailable_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let withdrawal_result = account.withdraw(Money::parse_unchecked("50"));
@@ -231,7 +231,7 @@ mod tests {
 
         #[test]
         fn test_withdraw_from_empty_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
 
             assert_eq!(account.total_balance(), Money::parse_unchecked("0"));
 
@@ -246,7 +246,7 @@ mod tests {
 
         #[test]
         fn test_withdraw_from_locked_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
             account.locked = true;
 
@@ -265,7 +265,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("20"));
@@ -279,7 +279,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_for_all_available_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("42"));
@@ -293,7 +293,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_with_insufficient_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("50"));
@@ -307,7 +307,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_on_empty_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
 
             assert_eq!(account.total_balance(), Money::parse_unchecked("0"));
 
@@ -322,7 +322,7 @@ mod tests {
 
         #[test]
         fn test_open_dispute_on_locked_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
             account.locked = true;
 
@@ -341,7 +341,7 @@ mod tests {
 
         #[test]
         fn test_resolve_dispute() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("10"));
@@ -360,7 +360,7 @@ mod tests {
 
         #[test]
         fn test_resolve_dispute_of_all_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("42"));
@@ -379,7 +379,7 @@ mod tests {
 
         #[test]
         fn test_resolve_dispute_with_insufficient_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("2"));
@@ -398,7 +398,7 @@ mod tests {
 
         #[test]
         fn test_resolve_dispute_with_no_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             assert_eq!(account.total_balance(), Money::parse_unchecked("42"));
@@ -415,7 +415,7 @@ mod tests {
 
         #[test]
         fn test_resolve_dispute_on_locked_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
             account.held = Money::parse_unchecked("2");
             account.locked = true;
@@ -435,7 +435,7 @@ mod tests {
 
         #[test]
         fn test_chargeback() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("10"));
@@ -454,7 +454,7 @@ mod tests {
 
         #[test]
         fn test_chargeback_of_all_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("42"));
@@ -473,7 +473,7 @@ mod tests {
 
         #[test]
         fn test_chargeback_with_insufficient_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("2"));
@@ -493,7 +493,7 @@ mod tests {
 
         #[test]
         fn test_chargeback_with_no_held_funds() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             assert_eq!(account.total_balance(), Money::parse_unchecked("42"));
@@ -512,7 +512,7 @@ mod tests {
 
         #[test]
         fn test_chargeback_with_locked_account() {
-            let mut account = Account::new(1);
+            let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse_unchecked("42");
 
             let dispute_result = account.open_dispute(Money::parse_unchecked("10"));

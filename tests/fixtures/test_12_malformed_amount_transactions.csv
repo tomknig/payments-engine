@@ -4,3 +4,6 @@ deposit, 2, 2, 1.0a0
 deposit, 3, 3, -1.0a0
 deposit, 4, 4, a.0a0
 deposit, 5, 5, 1.0.
+deposit, 6, 6, 1.0
+deposit, 6, 7, -1.0
+withdrawal, 6, 8, -1.0.
