@@ -11,9 +11,7 @@ pub enum MoneyError {
 }
 
 #[derive(Clone, Copy, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Money {
-    value: u64,
-}
+pub struct Money(u64);
 
 impl Money {
     pub fn new() -> Self {
@@ -76,7 +74,7 @@ impl Money {
             value += literal * 10u64.pow((PRECISION - i - 1) as u32);
         }
 
-        Ok(Money { value })
+        Ok(Money(value))
     }
 }
 
@@ -100,9 +98,7 @@ impl ops::Add for Money {
     type Output = Money;
 
     fn add(self, other: Money) -> Self::Output {
-        Money {
-            value: self.value + other.value,
-        }
+        Money(self.0 + other.0)
     }
 }
 
@@ -110,16 +106,14 @@ impl ops::Sub for Money {
     type Output = Money;
 
     fn sub(self, other: Money) -> Self::Output {
-        Money {
-            value: self.value - other.value,
-        }
+        Money(self.0 - other.0)
     }
 }
 
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let integer_part = self.value / 10u64.pow(PRECISION as u32);
-        let fraction_part = self.value % 10u64.pow(PRECISION as u32);
+        let integer_part = self.0 / 10u64.pow(PRECISION as u32);
+        let fraction_part = self.0 % 10u64.pow(PRECISION as u32);
 
         write!(f, "{}.{:0PRECISION$}", integer_part, fraction_part)
     }
@@ -142,14 +136,14 @@ mod tests {
         fn test_parse_integer() {
             let money = Money::parse("1");
             assert!(money.is_ok());
-            assert_eq!(money.unwrap().value, 1_0000);
+            assert_eq!(money.unwrap().0, 1_0000);
         }
 
         #[test]
         fn test_parse_valid_decimal() {
             let money = Money::parse("1.0");
             assert!(money.is_ok());
-            assert_eq!(money.unwrap().value, 1_0000);
+            assert_eq!(money.unwrap().0, 1_0000);
         }
 
         #[test]
@@ -199,13 +193,13 @@ mod tests {
         /// That is: 2^64 / 10^4 - 1
         fn test_max_integer_precision_parses_successfully() {
             let money = Money::parse("1844674407370954");
-            assert_eq!(money.unwrap().value, 18446744073709540000);
+            assert_eq!(money.unwrap().0, 18446744073709540000);
         }
 
         #[test]
         fn test_max_number_parses_successfully() {
             let money = Money::parse("1844674407370954.9999");
-            assert_eq!(money.unwrap().value, 18446744073709549999);
+            assert_eq!(money.unwrap().0, 18446744073709549999);
         }
 
         #[test]
@@ -239,72 +233,72 @@ mod tests {
         #[test]
         fn test_parse_integer() {
             let money = Money::parse_unchecked("123");
-            assert_eq!(money.value, 123_0000);
+            assert_eq!(money.0, 123_0000);
         }
 
         #[test]
         fn test_parse_one_fractional_digit() {
             let money = Money::parse_unchecked("123.4");
-            assert_eq!(money.value, 123_4000);
+            assert_eq!(money.0, 123_4000);
         }
 
         #[test]
         fn test_parse_two_fractional_digits() {
             let money = Money::parse_unchecked("123.45");
-            assert_eq!(money.value, 123_4500);
+            assert_eq!(money.0, 123_4500);
         }
 
         #[test]
         fn test_parse_three_fractional_digits() {
             let money = Money::parse_unchecked("123.456");
-            assert_eq!(money.value, 123_4560);
+            assert_eq!(money.0, 123_4560);
         }
 
         #[test]
         fn test_parse_four_fractional_digits() {
             let money = Money::parse_unchecked("123.4567");
-            assert_eq!(money.value, 123_4567);
+            assert_eq!(money.0, 123_4567);
         }
 
         #[test]
         fn test_parse_fraction_with_leading_zeros() {
             let money = Money::parse_unchecked("123.0007");
-            assert_eq!(money.value, 123_0007);
+            assert_eq!(money.0, 123_0007);
         }
 
         #[test]
         fn test_parse_fraction_with_trailing_zeros() {
             let money = Money::parse_unchecked("123.4560");
-            assert_eq!(money.value, 123_4560);
+            assert_eq!(money.0, 123_4560);
         }
 
         #[test]
         fn test_parse_fraction_with_leading_and_trailing_zeros() {
             let money = Money::parse_unchecked("123.0560");
-            assert_eq!(money.value, 123_0560);
+            assert_eq!(money.0, 123_0560);
         }
 
         #[test]
         fn test_display_zero_fraction() {
-            let money = Money { value: 123_0000 };
+            let money = Money(123_0000);
             assert_eq!(money.to_string(), "123.0000");
         }
 
         #[test]
         fn test_display_one_decimal_place() {
-            let money = Money { value: 123_4000 };
+            let money = Money(123_4000);
             assert_eq!(money.to_string(), "123.4000");
         }
 
         #[test]
         fn test_display_leading_zeros_in_fraction() {
-            let money = Money { value: 123_0007 };
+            let money = Money(123_0007);
             assert_eq!(money.to_string(), "123.0007");
         }
 
         #[test]
         fn test_display_full_precision() {
-            let money = Money { value: 123_4567 };
+            let money = Money(123_4567);
             assert_eq!(money.to_string(), "123.4567");
         }
     }
