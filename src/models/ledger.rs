@@ -281,12 +281,16 @@ mod tests {
             let client_1 = 1_001;
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(
-                DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
-            ),
-                Transaction::Deposit(
-                DepositTransaction::new(client_1, 9_001, Money::parse_unchecked("100")),
-            ),
+                Transaction::Deposit(DepositTransaction::new(
+                    client_1,
+                    9_001,
+                    Money::parse_unchecked("100"),
+                )),
+                Transaction::Deposit(DepositTransaction::new(
+                    client_1,
+                    9_001,
+                    Money::parse_unchecked("100"),
+                )),
             ]);
 
             assert_eq!(
@@ -394,7 +398,7 @@ mod tests {
         }
 
         #[test]
-        fn test_withdrawal_fails_if_transaction_id_has_been_used () {
+        fn test_withdrawal_fails_if_transaction_id_has_been_used() {
             let client_1 = 1_001;
 
             let (ledger, _) = ledger_with_transactions(vec![

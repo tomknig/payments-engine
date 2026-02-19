@@ -31,7 +31,9 @@ impl Money {
         let fraction_slice = parts.next().unwrap_or("");
 
         if parts.next().is_some() {
-            return Err(MoneyError::ParseError("multiple dots are not allowed".to_string()));
+            return Err(MoneyError::ParseError(
+                "multiple dots are not allowed".to_string(),
+            ));
         }
 
         let integer_part = integer_slice
@@ -117,7 +119,7 @@ impl fmt::Debug for Money {
 mod tests {
     use super::*;
 
-    mod parse{
+    mod parse {
         use super::*;
 
         #[test]

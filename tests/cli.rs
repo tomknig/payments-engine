@@ -20,22 +20,12 @@ mod integration_tests {
 
         let mut actual_rows: Vec<Vec<String>> = actual_reader
             .records()
-            .map(|r| {
-                r.unwrap()
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect()
-            })
+            .map(|r| r.unwrap().iter().map(|s| s.to_string()).collect())
             .collect();
 
         let mut expected_rows: Vec<Vec<String>> = expected_reader
             .records()
-            .map(|r| {
-                r.unwrap()
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect()
-            })
+            .map(|r| r.unwrap().iter().map(|s| s.to_string()).collect())
             .collect();
 
         actual_rows.sort();
@@ -48,25 +38,82 @@ mod integration_tests {
     fn test_fixtures() {
         let cases = [
             ("test_0_transactions.csv", "test_0_accounts.csv"),
-            ("test_1_locked_account_transactions.csv", "test_1_locked_account_accounts.csv"),
-            ("test_2_open_dispute_transactions.csv", "test_2_open_dispute_accounts.csv"),
-            ("test_3_double_chargeback_transactions.csv", "test_3_double_chargeback_accounts.csv"),
-            ("test_4_double_dispute_transactions.csv", "test_4_double_dispute_accounts.csv"),
-            ("test_5_double_resolve_transactions.csv", "test_5_double_resolve_accounts.csv"),
-            ("test_6_chargeback_resolved_transactions.csv", "test_6_chargeback_resolved_accounts.csv"),
-            ("test_7_resolve_chargedback_transactions.csv", "test_7_resolve_chargedback_accounts.csv"),
-            ("test_8_successful_resolution_transactions.csv", "test_8_successful_resolution_accounts.csv"),
-            ("test_9_mismatching_client_id_transactions.csv", "test_9_mismatching_client_id_accounts.csv"),
-            ("test_10_malformed_client_id_transactions.csv", "test_10_malformed_client_id_accounts.csv"),
-            ("test_11_malformed_tx_id_transactions.csv", "test_11_malformed_tx_id_accounts.csv"),
-            ("test_12_malformed_amount_transactions.csv", "test_12_malformed_amount_accounts.csv"),
-            ("test_13_malformed_file_transactions.csv", "test_13_malformed_file_accounts.csv"),
-            ("test_14_missing_amount_transactions.csv", "test_14_missing_amount_accounts.csv"),
-            ("test_15_negative_amount_transactions.csv", "test_15_negative_amount_accounts.csv"),
-            ("test_16_duplicated_tx_id_transactions.csv", "test_16_duplicated_tx_id_accounts.csv"),
-            ("test_17_balance_too_low_for_dispute_transactions.csv", "test_17_balance_too_low_for_dispute_accounts.csv"),
-            ("test_18_unordered_ids_transactions.csv", "test_18_unordered_ids_accounts.csv"),
-            ("test_19_invalid_transaction_type_transactions.csv", "test_19_invalid_transaction_type_accounts.csv"),
+            (
+                "test_1_locked_account_transactions.csv",
+                "test_1_locked_account_accounts.csv",
+            ),
+            (
+                "test_2_open_dispute_transactions.csv",
+                "test_2_open_dispute_accounts.csv",
+            ),
+            (
+                "test_3_double_chargeback_transactions.csv",
+                "test_3_double_chargeback_accounts.csv",
+            ),
+            (
+                "test_4_double_dispute_transactions.csv",
+                "test_4_double_dispute_accounts.csv",
+            ),
+            (
+                "test_5_double_resolve_transactions.csv",
+                "test_5_double_resolve_accounts.csv",
+            ),
+            (
+                "test_6_chargeback_resolved_transactions.csv",
+                "test_6_chargeback_resolved_accounts.csv",
+            ),
+            (
+                "test_7_resolve_chargedback_transactions.csv",
+                "test_7_resolve_chargedback_accounts.csv",
+            ),
+            (
+                "test_8_successful_resolution_transactions.csv",
+                "test_8_successful_resolution_accounts.csv",
+            ),
+            (
+                "test_9_mismatching_client_id_transactions.csv",
+                "test_9_mismatching_client_id_accounts.csv",
+            ),
+            (
+                "test_10_malformed_client_id_transactions.csv",
+                "test_10_malformed_client_id_accounts.csv",
+            ),
+            (
+                "test_11_malformed_tx_id_transactions.csv",
+                "test_11_malformed_tx_id_accounts.csv",
+            ),
+            (
+                "test_12_malformed_amount_transactions.csv",
+                "test_12_malformed_amount_accounts.csv",
+            ),
+            (
+                "test_13_malformed_file_transactions.csv",
+                "test_13_malformed_file_accounts.csv",
+            ),
+            (
+                "test_14_missing_amount_transactions.csv",
+                "test_14_missing_amount_accounts.csv",
+            ),
+            (
+                "test_15_negative_amount_transactions.csv",
+                "test_15_negative_amount_accounts.csv",
+            ),
+            (
+                "test_16_duplicated_tx_id_transactions.csv",
+                "test_16_duplicated_tx_id_accounts.csv",
+            ),
+            (
+                "test_17_balance_too_low_for_dispute_transactions.csv",
+                "test_17_balance_too_low_for_dispute_accounts.csv",
+            ),
+            (
+                "test_18_unordered_ids_transactions.csv",
+                "test_18_unordered_ids_accounts.csv",
+            ),
+            (
+                "test_19_invalid_transaction_type_transactions.csv",
+                "test_19_invalid_transaction_type_accounts.csv",
+            ),
         ];
 
         for (transactions, accounts) in cases {
@@ -92,6 +139,6 @@ mod integration_tests {
                     transactions, accounts
                 );
             }
-         }
+        }
     }
 }
