@@ -13,6 +13,10 @@ The [domain model for money](./src/models/money.rs) is designed to have a precis
 1. When less money is available than a dispute would demand, I let the dispute fail. I am assuming that partial disputes are not a thing for this toy engine. Think: `Deposit(id: a, amount: 10) -> Withdraw(b, 5) -> Dispute(a)`. This dispute would require a remaining balance of `10` in order to put sufficient funds on hold and to conduct a chargeback later. So due to the preceding withdrawal of `5`, the balance would be insufficient and the dispute fails.
 1. Frozen accounts accept no further transactions at all, not even deposits.
 
+### Creation of Accounts
+
+New accounts, and therefore entries in the output, are only created if there is at least one valid transaction. This means that, if there is for example only one `Withdrawal` transaction, the respective account will not be found in the output, except at least one valid `Deposit` follows.
+
 ### Input
 
 While handling some invalid input formats, I generally assume `transaction.csv` files to follow the expected column layout, and:
