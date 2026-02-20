@@ -4,7 +4,7 @@
 
 ### Amount of Money
 
-The [domain model for money](./src/models/money.rs) is designed to have a precision of four decimals. I decided to go with a `u64` for the underlying datatype for storing actual monetary data. It therefore uses `10^4-1 ~= 14 bits` for the fractional part and the remaining `64 - 14 = 50 bits` for the integer part. I am therefore assuming that no single transaction, nor total account balance ever exceeds `2^50 ~= 10^15`, or to be precise, `1844674407370954.9999`, which I think is a fair assumption to make for this toy engine.
+The [domain model for money](./src/models/money.rs) is designed to have a precision of four decimals. The underlying datatype is `Decimal` from `rust_decimal`. Due to the precision enforced to four digits, representable money is limited to the range `-999999999999999999999999.9999..999999999999999999999999.9999`.
 
 ### Dispute Management
 
@@ -34,12 +34,7 @@ In addition to unit tests, more complex interactions of different transaction ty
 
 ## Safety
 
-The [domain model for money](./src/models/money.rs) implements saturating math, which sounds dangerous in the context of a payments engine. Two cases are worth to look at:
-
-1. Saturating sub masks underflows: Subtraction of monetary values are implemented in the [account model](./src/models/account.rs), each of which is guarded by a previous check and supported by unit tests. Therefore, while it is a potential issue of the money model, it doesn't surface in this application.
-2. Saturating add masks overflows: Depositing more than the maximum amount of money representable, if conducted in chunks of representable values, would result in the account balancing saturating at the maximum number. This is incorrect behavior, but explicitly stated as an assumption this application operates under. If the requirement changes, i.e., more money would need to become representable, one of two solutions could be implemented: 1) Increasing the width of the money model to `u128`, and/or 2) failing when the amount exceeds representable values.
-
-Why an own type for the decimal? We need two non-standard properties anyway: It should be non-negative and it must support exactly four fractional digits. The effort implementing a new type on top of `rust_decimal` felt comparable to implementing the money model implemented here, but yields worse performance. With the assumption about the max amount of money above, `rust_decimal` uses twice the memory compared to this application-specific implementation.
+The [domain model for money](./src/models/money.rs) implements math that errors on bounds. That means when addition or subtraction exceeds representable limits, that operation will fail. This means for example, that a deposit, even when individually representable, would fail if the summed account balance would exceed the representable value after crediting it.
 
 ## Efficiency
 

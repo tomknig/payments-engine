@@ -1,8 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use thiserror::Error;
 
 use super::client::ClientId;
 use super::money::Money;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum TransactionError {
+    #[error("amount of transactions must be positive")]
+    NegativeTransactionAmount,
+}
 
 pub enum Transaction {
     Deposit(DepositTransaction),
@@ -10,6 +17,18 @@ pub enum Transaction {
     Dispute(DisputeTransaction),
     Resolve(ResolveTransaction),
     Chargeback(ChargebackTransaction),
+}
+
+impl Transaction {
+    pub fn client_id(&self) -> ClientId {
+        match self {
+            Transaction::Deposit(transaction) => transaction.client_id,
+            Transaction::Withdrawal(transaction) => transaction.client_id,
+            Transaction::Dispute(transaction) => transaction.client_id,
+            Transaction::Resolve(transaction) => transaction.client_id,
+            Transaction::Chargeback(transaction) => transaction.client_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -38,40 +57,80 @@ impl fmt::Display for TransactionId {
 }
 
 pub struct DepositTransaction {
-    pub client_id: ClientId,
-    pub id: TransactionId,
-    pub amount: Money,
+    client_id: ClientId,
+    id: TransactionId,
+    amount: Money,
 }
 
 impl DepositTransaction {
-    pub fn new(client_id: ClientId, id: TransactionId, amount: Money) -> Self {
-        Self {
+    pub fn new(
+        client_id: ClientId,
+        id: TransactionId,
+        amount: Money,
+    ) -> Result<Self, TransactionError> {
+        if amount.is_negative() {
+            return Err(TransactionError::NegativeTransactionAmount);
+        }
+
+        Ok(Self {
             client_id,
             id,
             amount,
-        }
+        })
+    }
+
+    pub fn client_id(&self) -> ClientId {
+        self.client_id
+    }
+
+    pub fn id(&self) -> TransactionId {
+        self.id
+    }
+
+    pub fn amount(&self) -> Money {
+        self.amount
     }
 }
 
 pub struct WithdrawalTransaction {
-    pub client_id: ClientId,
-    pub id: TransactionId,
-    pub amount: Money,
+    client_id: ClientId,
+    id: TransactionId,
+    amount: Money,
 }
 
 impl WithdrawalTransaction {
-    pub fn new(client_id: ClientId, id: TransactionId, amount: Money) -> Self {
-        Self {
+    pub fn new(
+        client_id: ClientId,
+        id: TransactionId,
+        amount: Money,
+    ) -> Result<Self, TransactionError> {
+        if amount.is_negative() {
+            return Err(TransactionError::NegativeTransactionAmount);
+        }
+
+        Ok(Self {
             client_id,
             id,
             amount,
-        }
+        })
+    }
+
+    pub fn client_id(&self) -> ClientId {
+        self.client_id
+    }
+
+    pub fn id(&self) -> TransactionId {
+        self.id
+    }
+
+    pub fn amount(&self) -> Money {
+        self.amount
     }
 }
 
 pub struct DisputeTransaction {
-    pub client_id: ClientId,
-    pub original_transaction_id: TransactionId,
+    client_id: ClientId,
+    original_transaction_id: TransactionId,
 }
 
 impl DisputeTransaction {
@@ -81,11 +140,19 @@ impl DisputeTransaction {
             original_transaction_id,
         }
     }
+
+    pub fn client_id(&self) -> ClientId {
+        self.client_id
+    }
+
+    pub fn original_transaction_id(&self) -> TransactionId {
+        self.original_transaction_id
+    }
 }
 
 pub struct ResolveTransaction {
-    pub client_id: ClientId,
-    pub original_transaction_id: TransactionId,
+    client_id: ClientId,
+    original_transaction_id: TransactionId,
 }
 
 impl ResolveTransaction {
@@ -95,11 +162,19 @@ impl ResolveTransaction {
             original_transaction_id,
         }
     }
+
+    pub fn client_id(&self) -> ClientId {
+        self.client_id
+    }
+
+    pub fn original_transaction_id(&self) -> TransactionId {
+        self.original_transaction_id
+    }
 }
 
 pub struct ChargebackTransaction {
-    pub client_id: ClientId,
-    pub original_transaction_id: TransactionId,
+    client_id: ClientId,
+    original_transaction_id: TransactionId,
 }
 
 impl ChargebackTransaction {
@@ -108,5 +183,13 @@ impl ChargebackTransaction {
             client_id,
             original_transaction_id,
         }
+    }
+
+    pub fn client_id(&self) -> ClientId {
+        self.client_id
+    }
+
+    pub fn original_transaction_id(&self) -> TransactionId {
+        self.original_transaction_id
     }
 }

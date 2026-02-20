@@ -1,80 +1,81 @@
+use rust_decimal::{Decimal, dec};
 use serde::{Deserialize, Serialize};
-use std::{fmt, ops};
+use std::{fmt, str::FromStr};
 use thiserror::Error;
 
-const PRECISION: usize = 4;
+const PRECISION: u32 = 4;
+
+// We support a maximum of 24 integer and 4 fractional digits
+const MAX: Decimal = dec!(999999999999999999999999.9999);
+const MIN: Decimal = dec!(-999999999999999999999999.9999);
 
 #[derive(Error, Debug, PartialEq)]
 pub enum MoneyError {
     #[error("unable to parse money: {0}")]
     ParseError(String),
+    #[error("adding {0} to {1} is out of representable bounds")]
+    AdditionOutOfBounds(Money, Money),
+    #[error("subtracting {0} from {1} is out of representable bounds")]
+    SubtractionOutOfBounds(Money, Money),
 }
 
 #[derive(Clone, Copy, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct Money(u64);
+pub struct Money(Decimal);
 
 impl Money {
     pub fn new() -> Self {
         Money::default()
     }
 
-    pub fn parse_unchecked(s: &str) -> Self {
-        Self::parse(s).expect("valid money literal")
-    }
-
     pub fn parse(s: &str) -> Result<Self, MoneyError> {
-        let trimmed_value = s.trim();
-        let mut parts = trimmed_value.split('.');
-        let integer_slice = parts.next().unwrap_or("");
-        let fraction_slice = parts.next().unwrap_or("");
+        let mut value =
+            Decimal::from_str(s.trim()).map_err(|e| MoneyError::ParseError(e.to_string()))?;
 
-        if parts.next().is_some() {
-            return Err(MoneyError::ParseError(
-                "multiple dots are not allowed".to_string(),
-            ));
-        }
-
-        if fraction_slice.len() > PRECISION {
+        if value.scale() > PRECISION {
             return Err(MoneyError::ParseError(
                 "too many fractional digits".to_string(),
             ));
         }
 
-        let value = integer_slice
-            .parse::<u64>()
-            .map_err(|e| MoneyError::ParseError(e.to_string()))?;
+        value.rescale(PRECISION);
 
-        let scale = 10u64
-            .checked_pow(PRECISION as u32)
-            .ok_or_else(|| MoneyError::ParseError("precision too large".to_string()))?;
-
-        if value > u64::MAX / scale - 1 {
+        if value > MAX || value < MIN {
             return Err(MoneyError::ParseError(
-                "value exceeds maximum value".to_string(),
+                "value out of representable bounds".to_string(),
             ));
         }
 
-        let mut value = value.checked_mul(scale).ok_or_else(|| {
-            MoneyError::ParseError("integer part exceeds maximum value".to_string())
-        })?;
+        Ok(Money(value))
+    }
 
-        for (i, &b) in fraction_slice.as_bytes().iter().enumerate() {
-            if PRECISION - i == 0 {
-                break;
-            }
+    pub fn is_negative(&self) -> bool {
+        self.0.is_sign_negative()
+    }
 
-            if !b.is_ascii_digit() {
-                return Err(MoneyError::ParseError(format!(
-                    "invalid digit at position {}",
-                    i
-                )));
-            }
+    pub fn checked_add(self, other: Money) -> Result<Self, MoneyError> {
+        let result = match self.0.checked_add(other.0) {
+            None => Err(MoneyError::AdditionOutOfBounds(other, self)),
+            Some(result) => Ok(Money(result)),
+        }?;
 
-            let literal = (b - b'0') as u64;
-            value += literal * 10u64.pow((PRECISION - i - 1) as u32);
+        if result.0 > MAX || result.0 < MIN {
+            return Err(MoneyError::AdditionOutOfBounds(other, self));
         }
 
-        Ok(Money(value))
+        Ok(result)
+    }
+
+    pub fn checked_sub(self, other: Money) -> Result<Self, MoneyError> {
+        let result = match self.0.checked_sub(other.0) {
+            None => Err(MoneyError::SubtractionOutOfBounds(other, self)),
+            Some(result) => Ok(Money(result)),
+        }?;
+
+        if result.0 > MAX || result.0 < MIN {
+            return Err(MoneyError::SubtractionOutOfBounds(other, self));
+        }
+
+        Ok(result)
     }
 }
 
@@ -94,28 +95,9 @@ impl TryFrom<String> for Money {
     }
 }
 
-impl ops::Add for Money {
-    type Output = Money;
-
-    fn add(self, other: Money) -> Self::Output {
-        Money(self.0.saturating_add(other.0))
-    }
-}
-
-impl ops::Sub for Money {
-    type Output = Money;
-
-    fn sub(self, other: Money) -> Self::Output {
-        Money(self.0.saturating_sub(other.0))
-    }
-}
-
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let integer_part = self.0 / 10u64.pow(PRECISION as u32);
-        let fraction_part = self.0 % 10u64.pow(PRECISION as u32);
-
-        write!(f, "{}.{:0PRECISION$}", integer_part, fraction_part)
+        write!(f, "{:.4}", self.0)
     }
 }
 
@@ -134,16 +116,20 @@ mod tests {
 
         #[test]
         fn test_parse_integer() {
-            let money = Money::parse("1");
-            assert!(money.is_ok());
-            assert_eq!(money.unwrap().0, 1_0000);
+            let money = Money::parse("1").unwrap();
+            assert_eq!(money.to_string(), "1.0000");
         }
 
         #[test]
         fn test_parse_valid_decimal() {
-            let money = Money::parse("1.0");
-            assert!(money.is_ok());
-            assert_eq!(money.unwrap().0, 1_0000);
+            let money = Money::parse("1.0").unwrap();
+            assert_eq!(money.to_string(), "1.0000");
+        }
+
+        #[test]
+        fn test_parse_negative_number() {
+            let money = Money::parse("-1.0").unwrap();
+            assert_eq!(money.to_string(), "-1.0000");
         }
 
         #[test]
@@ -155,12 +141,6 @@ mod tests {
         #[test]
         fn test_parse_char_in_fraction() {
             let money = Money::parse("1.0a0");
-            assert!(money.is_err());
-        }
-
-        #[test]
-        fn test_parse_negative_number() {
-            let money = Money::parse("-1.0");
             assert!(money.is_err());
         }
 
@@ -189,40 +169,32 @@ mod tests {
         }
 
         #[test]
-        /// The exact boundary of an integer that can be passed
-        /// That is: 2^64 / 10^4 - 1
-        fn test_max_integer_precision_parses_successfully() {
-            let money = Money::parse("1844674407370954");
-            assert_eq!(money.unwrap().0, 18446744073709540000);
+        fn test_largest_number_parses_successfully() {
+            let max_representable = MAX.to_string();
+            let money = Money::parse(&max_representable).unwrap();
+            assert_eq!(money.to_string(), "999999999999999999999999.9999");
         }
 
         #[test]
-        fn test_max_number_parses_successfully() {
-            let money = Money::parse("1844674407370954.9999");
-            assert_eq!(money.unwrap().0, 18446744073709549999);
+        fn test_smallest_number_parses_successfully() {
+            let min_representable = MIN.to_string();
+            let money = Money::parse(&min_representable).unwrap();
+            assert_eq!(money.to_string(), "-999999999999999999999999.9999");
         }
 
         #[test]
-        /// The exact boundary of an integer that can not be passed
-        /// That is: 2^64 / 10^4
-        fn test_first_integer_that_exceeds_size() {
-            let money = Money::parse("1844674407370955");
+        fn test_reject_number_above_maximum() {
+            let max_representable = MAX.to_string();
+            let larger_than_representable = format!("9{}", max_representable);
+            let money = Money::parse(&larger_than_representable);
             assert!(money.is_err());
         }
 
         #[test]
-        /// The exact boundary of the total decimal that can be passed
-        /// That is, 2^64 / 10^4 + 0.9999
-        fn test_overflow_at_max_integer_precision_doesnt_panic() {
-            // =
-            let money = Money::parse("1844674407370955.9999");
-            assert!(money.is_err());
-        }
-
-        #[test]
-        /// 2^64 should gracefully fail, i.e., don't panic on overflow
-        fn test_overflow_at_max_precision_doesnt_panic() {
-            let money = Money::parse("18446744073709551616");
+        fn test_reject_number_below_minimum() {
+            let max_representable = MAX.to_string();
+            let smaller_than_representable = format!("-9{}", max_representable);
+            let money = Money::parse(&smaller_than_representable);
             assert!(money.is_err());
         }
     }
@@ -231,95 +203,44 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_addition_doesnt_panic() {
-            let money = Money::parse("1844674407370954").unwrap();
-            let more_money = Money::parse("1844674407370954").unwrap();
-            let sum = money + more_money;
-            assert_eq!(sum.0, 18446744073709551615);
+        fn test_checked_addition() {
+            let money = Money::parse("1.25").unwrap();
+            let more_money = Money::parse("0.5").unwrap();
+            let sum = money.checked_add(more_money).unwrap();
+            assert_eq!(sum.to_string(), "1.7500");
         }
 
         #[test]
-        fn test_subtraction_doesnt_panic() {
+        fn test_checked_subtraction_can_be_negative() {
             let money = Money::parse("1").unwrap();
-            let more_money = Money::parse("1844674407370954").unwrap();
-            let diff = money - more_money;
-            assert_eq!(diff.0, 0);
-        }
-    }
-
-    mod parse_unchecked {
-        use super::*;
-
-        #[test]
-        fn test_parse_integer() {
-            let money = Money::parse_unchecked("123");
-            assert_eq!(money.0, 123_0000);
+            let more_money = Money::parse("2").unwrap();
+            let diff = money.checked_sub(more_money).unwrap();
+            assert_eq!(diff.to_string(), "-1.0000");
         }
 
         #[test]
-        fn test_parse_one_fractional_digit() {
-            let money = Money::parse_unchecked("123.4");
-            assert_eq!(money.0, 123_4000);
+        fn test_checked_add_fails_when_out_of_bounds() {
+            let max_representable = MAX.to_string();
+            let money = Money::parse(&max_representable).unwrap();
+            let more_money = Money::parse(&max_representable).unwrap();
+            let result = money.checked_add(more_money);
+
+            let error = result.as_ref().expect_err("expected addition to fail");
+
+            assert!(error.to_string().starts_with("adding 999999999999999999999999.9999 to 999999999999999999999999.9999 is out of representable bounds"));
         }
 
         #[test]
-        fn test_parse_two_fractional_digits() {
-            let money = Money::parse_unchecked("123.45");
-            assert_eq!(money.0, 123_4500);
-        }
+        fn test_checked_sub_fails_when_out_of_bounds() {
+            let min_representable = MIN.to_string();
+            let max_representable = MAX.to_string();
+            let money = Money::parse(&min_representable).unwrap();
+            let more_money = Money::parse(&max_representable).unwrap();
+            let result = money.checked_sub(more_money);
 
-        #[test]
-        fn test_parse_three_fractional_digits() {
-            let money = Money::parse_unchecked("123.456");
-            assert_eq!(money.0, 123_4560);
-        }
+            let error = result.as_ref().expect_err("expected subtraction to fail");
 
-        #[test]
-        fn test_parse_four_fractional_digits() {
-            let money = Money::parse_unchecked("123.4567");
-            assert_eq!(money.0, 123_4567);
-        }
-
-        #[test]
-        fn test_parse_fraction_with_leading_zeros() {
-            let money = Money::parse_unchecked("123.0007");
-            assert_eq!(money.0, 123_0007);
-        }
-
-        #[test]
-        fn test_parse_fraction_with_trailing_zeros() {
-            let money = Money::parse_unchecked("123.4560");
-            assert_eq!(money.0, 123_4560);
-        }
-
-        #[test]
-        fn test_parse_fraction_with_leading_and_trailing_zeros() {
-            let money = Money::parse_unchecked("123.0560");
-            assert_eq!(money.0, 123_0560);
-        }
-
-        #[test]
-        fn test_display_zero_fraction() {
-            let money = Money(123_0000);
-            assert_eq!(money.to_string(), "123.0000");
-        }
-
-        #[test]
-        fn test_display_one_decimal_place() {
-            let money = Money(123_4000);
-            assert_eq!(money.to_string(), "123.4000");
-        }
-
-        #[test]
-        fn test_display_leading_zeros_in_fraction() {
-            let money = Money(123_0007);
-            assert_eq!(money.to_string(), "123.0007");
-        }
-
-        #[test]
-        fn test_display_full_precision() {
-            let money = Money(123_4567);
-            assert_eq!(money.to_string(), "123.4567");
+            assert!(error.to_string().starts_with("subtracting 999999999999999999999999.9999 from -999999999999999999999999.9999 is out of representable bounds"));
         }
     }
 }

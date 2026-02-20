@@ -66,7 +66,7 @@ impl Ledger {
             .get(&transaction_id)
             .ok_or(LedgerError::TransactionNotFound(transaction_id, client_id))?;
 
-        if deposit_transaction.client_id != client_id {
+        if deposit_transaction.client_id() != client_id {
             return Err(LedgerError::TransactionNotFound(transaction_id, client_id));
         }
 
@@ -74,45 +74,45 @@ impl Ledger {
     }
 
     fn handle_deposit(&mut self, transaction: DepositTransaction) -> Result<(), LedgerError> {
-        if self.has_transaction_been_processed(&transaction.id) {
-            return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
+        let (client_id, transaction_id) = (transaction.client_id(), transaction.id());
+        if self.has_transaction_been_processed(&transaction_id) {
+            return Err(LedgerError::TransactionAlreadyProcessed(transaction_id));
         }
 
-        let client_id = transaction.client_id;
         let account = self
             .accounts
             .entry(client_id)
             .or_insert_with(|| Account::new(client_id));
 
         account
-            .deposit(transaction.amount)
+            .deposit(transaction.amount())
             .map_err(|e| LedgerError::DepositError(client_id, e.to_string()))?;
 
-        self.deposits.insert(transaction.id, transaction);
+        self.deposits.insert(transaction_id, transaction);
         Ok(())
     }
 
     fn handle_withdrawal(&mut self, transaction: WithdrawalTransaction) -> Result<(), LedgerError> {
-        if self.has_transaction_been_processed(&transaction.id) {
-            return Err(LedgerError::TransactionAlreadyProcessed(transaction.id));
+        let (client_id, transaction_id) = (transaction.client_id(), transaction.id());
+        if self.has_transaction_been_processed(&transaction_id) {
+            return Err(LedgerError::TransactionAlreadyProcessed(transaction_id));
         }
 
-        let client_id = transaction.client_id;
         let account = self
             .accounts
             .get_mut(&client_id)
             .ok_or(LedgerError::AccountNotFound(client_id))?;
 
         account
-            .withdraw(transaction.amount)
+            .withdraw(transaction.amount())
             .map_err(|e| LedgerError::WithdrawalError(client_id, e.to_string()))?;
 
-        self.withdrawal_ids.insert(transaction.id);
+        self.withdrawal_ids.insert(transaction_id);
         Ok(())
     }
 
     fn handle_dispute(&mut self, dispute: DisputeTransaction) -> Result<(), LedgerError> {
-        let (client_id, transaction_id) = (dispute.client_id, dispute.original_transaction_id);
+        let (client_id, transaction_id) = (dispute.client_id(), dispute.original_transaction_id());
         let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
         if self.is_transaction_disputed(transaction_id) {
@@ -122,7 +122,7 @@ impl Ledger {
             ));
         }
 
-        let amount = deposit.amount;
+        let amount = deposit.amount();
         let account = self
             .accounts
             .get_mut(&client_id)
@@ -142,14 +142,14 @@ impl Ledger {
         resolution: ResolveTransaction,
     ) -> Result<(), LedgerError> {
         let (client_id, transaction_id) =
-            (resolution.client_id, resolution.original_transaction_id);
+            (resolution.client_id(), resolution.original_transaction_id());
         let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
         if !self.is_transaction_disputed(transaction_id) {
             return Err(LedgerError::DisputeNotFound(transaction_id, client_id));
         }
 
-        let amount = deposit.amount;
+        let amount = deposit.amount();
         let account = self
             .accounts
             .get_mut(&client_id)
@@ -166,18 +166,18 @@ impl Ledger {
 
     fn handle_chargeback(&mut self, chargeback: ChargebackTransaction) -> Result<(), LedgerError> {
         let (client_id, transaction_id) =
-            (chargeback.client_id, chargeback.original_transaction_id);
+            (chargeback.client_id(), chargeback.original_transaction_id());
         let deposit = self.get_deposit_transaction(client_id, transaction_id)?;
 
         if !self.is_transaction_disputed(transaction_id) {
             return Err(LedgerError::DisputeNotFound(transaction_id, client_id));
         }
 
-        let amount = deposit.amount;
+        let amount = deposit.amount();
         let account = self
             .accounts
-            .get_mut(&chargeback.client_id)
-            .ok_or(LedgerError::AccountNotFound(chargeback.client_id))?;
+            .get_mut(&client_id)
+            .ok_or(LedgerError::AccountNotFound(client_id))?;
 
         account
             .handle_chargeback(amount)
@@ -225,16 +225,18 @@ mod tests {
         fn test_process_a_single_deposit_transaction() {
             let client_1 = ClientId::new(1_001);
 
-            let (ledger, _) =
-                ledger_with_transactions(vec![Transaction::Deposit(DepositTransaction::new(
+            let (ledger, _) = ledger_with_transactions(vec![Transaction::Deposit(
+                DepositTransaction::new(
                     client_1,
                     TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                ))]);
+                    Money::parse("100").unwrap(),
+                )
+                .unwrap(),
+            )]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
         }
 
@@ -243,21 +245,27 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
         }
 
@@ -266,21 +274,27 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
         }
 
@@ -290,45 +304,63 @@ mod tests {
             let client_2 = ClientId::new(1_002);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_2,
-                    TransactionId::new(9_003),
-                    Money::parse_unchecked("300"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_2,
-                    TransactionId::new(9_004),
-                    Money::parse_unchecked("400"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_005),
-                    Money::parse_unchecked("500"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_2,
-                    TransactionId::new(9_006),
-                    Money::parse_unchecked("600"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_2,
+                        TransactionId::new(9_003),
+                        Money::parse("300").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_2,
+                        TransactionId::new(9_004),
+                        Money::parse("400").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_005),
+                        Money::parse("500").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_2,
+                        TransactionId::new(9_006),
+                        Money::parse("600").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("800")
+                Money::parse("800").unwrap()
             );
             assert_eq!(
                 ledger.accounts.get(&client_2).unwrap().total_balance(),
-                Money::parse_unchecked("1300")
+                Money::parse("1300").unwrap()
             );
         }
     }
@@ -341,21 +373,27 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
         }
 
@@ -364,21 +402,27 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
         }
 
@@ -387,26 +431,35 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
         }
 
@@ -418,8 +471,9 @@ mod tests {
                 WithdrawalTransaction::new(
                     client_1,
                     TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                ),
+                    Money::parse("50").unwrap(),
+                )
+                .unwrap(),
             )]);
 
             assert_eq!(ledger.accounts.len(), 0);
@@ -443,21 +497,27 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             assert_eq!(
                 ledger.accounts.get(&client_1).unwrap().total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
 
             let first_error = results
@@ -479,22 +539,31 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_003),
-                    Money::parse_unchecked("250"),
-                )),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_003),
+                        Money::parse("250").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             let error = results
@@ -513,15 +582,15 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("200")
+                Money::parse("200").unwrap()
             );
             assert_eq!(
                 client_1_account.held_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
         }
     }
@@ -534,26 +603,29 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("0")
+                Money::parse("0").unwrap()
             );
             assert_eq!(
                 client_1_account.held_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
         }
 
@@ -562,16 +634,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("50"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
@@ -592,16 +670,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
-            assert_eq!(
-                client_1_account.held_balance(),
-                Money::parse_unchecked("50")
-            );
+            assert_eq!(client_1_account.held_balance(), Money::parse("50").unwrap());
         }
 
         #[test]
@@ -610,16 +685,22 @@ mod tests {
             let client_2 = ClientId::new(1_002);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("50"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_2,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_2,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_2, TransactionId::new(9_001))),
             ]);
 
@@ -639,24 +720,24 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
 
             let client_2_account = ledger.accounts.get(&client_2).unwrap();
             assert_eq!(
                 client_2_account.total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
             assert_eq!(
                 client_2_account.available_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
-            assert_eq!(client_2_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_2_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -664,16 +745,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
@@ -693,13 +780,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -707,11 +794,14 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
@@ -731,13 +821,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -745,16 +835,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Withdrawal(WithdrawalTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("50"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Withdrawal(
+                    WithdrawalTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("50").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
@@ -774,13 +870,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("50")
+                Money::parse("50").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
     }
 
@@ -792,16 +888,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
@@ -809,13 +911,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -823,16 +925,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
@@ -854,13 +962,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -868,16 +976,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Resolve(ResolveTransaction::new(client_1, TransactionId::new(9_002))),
             ]);
 
@@ -897,13 +1011,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
     }
 
@@ -915,16 +1029,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, _) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Chargeback(ChargebackTransaction::new(
                     client_1,
@@ -935,13 +1055,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -949,16 +1069,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Chargeback(ChargebackTransaction::new(
                     client_1,
@@ -986,13 +1112,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -1000,16 +1126,22 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Chargeback(ChargebackTransaction::new(
                     client_1,
                     TransactionId::new(9_002),
@@ -1032,13 +1164,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("300")
+                Money::parse("300").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
 
         #[test]
@@ -1046,26 +1178,35 @@ mod tests {
             let client_1 = ClientId::new(1_001);
 
             let (ledger, results) = ledger_with_transactions(vec![
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_001),
-                    Money::parse_unchecked("100"),
-                )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_002),
-                    Money::parse_unchecked("200"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_001),
+                        Money::parse("100").unwrap(),
+                    )
+                    .unwrap(),
+                ),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_002),
+                        Money::parse("200").unwrap(),
+                    )
+                    .unwrap(),
+                ),
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_002))),
                 Transaction::Chargeback(ChargebackTransaction::new(
                     client_1,
                     TransactionId::new(9_002),
                 )),
-                Transaction::Deposit(DepositTransaction::new(
-                    client_1,
-                    TransactionId::new(9_003),
-                    Money::parse_unchecked("300"),
-                )),
+                Transaction::Deposit(
+                    DepositTransaction::new(
+                        client_1,
+                        TransactionId::new(9_003),
+                        Money::parse("300").unwrap(),
+                    )
+                    .unwrap(),
+                ),
             ]);
 
             let error = results
@@ -1084,13 +1225,13 @@ mod tests {
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse_unchecked("100")
+                Money::parse("100").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse_unchecked("0"));
+            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
         }
     }
 }

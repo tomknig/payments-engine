@@ -120,6 +120,10 @@ fn test_fixtures() {
             "test_21_large_amounts_transactions.csv",
             "test_21_large_amounts_accounts.csv",
         ),
+        (
+            "test_22_negative_amounts_transactions.csv",
+            "test_22_negative_amounts_accounts.csv",
+        ),
     ];
 
     for (transactions, accounts) in cases {
