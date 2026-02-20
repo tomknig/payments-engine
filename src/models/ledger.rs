@@ -834,7 +834,7 @@ mod tests {
         fn test_open_dispute_for_existing_transaction_but_insufficient_balance() {
             let client_1 = ClientId::new(1_001);
 
-            let (ledger, results) = ledger_with_transactions(vec![
+            let (ledger, _) = ledger_with_transactions(vec![
                 Transaction::Deposit(
                     DepositTransaction::new(
                         client_1,
@@ -854,19 +854,6 @@ mod tests {
                 Transaction::Dispute(DisputeTransaction::new(client_1, TransactionId::new(9_001))),
             ]);
 
-            let error = results
-                .get(2)
-                .expect("expect a result for the dispute transaction")
-                .as_ref()
-                .expect_err("expected the dispute transaction to fail");
-
-            assert!(
-                error.to_string().starts_with(
-                    "opening a dispute for transaction 9001 of client 1001 failed with reason"
-                ),
-                "unexpected error: {error}"
-            );
-
             let client_1_account = ledger.accounts.get(&client_1).unwrap();
             assert_eq!(
                 client_1_account.total_balance(),
@@ -874,9 +861,12 @@ mod tests {
             );
             assert_eq!(
                 client_1_account.available_balance(),
-                Money::parse("50").unwrap()
+                Money::parse("-50").unwrap()
             );
-            assert_eq!(client_1_account.held_balance(), Money::parse("0").unwrap());
+            assert_eq!(
+                client_1_account.held_balance(),
+                Money::parse("100").unwrap()
+            );
         }
     }
 

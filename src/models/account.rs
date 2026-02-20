@@ -9,8 +9,6 @@ pub enum AccountError {
     #[error("available balance (`{0}`) is insufficient for withdrawal (`{1}`)")]
     WithdrawableBalanceExceeded(Money, Money),
     #[error("available balance (`{0}`) is insufficient for dispute (`{1}`)")]
-    DisputableBalanceExceeded(Money, Money),
-    #[error("held balance (`{0}`) is insufficient for resolution (`{1}`)")]
     HeldBalanceExceeded(Money, Money),
     #[error("money arithmetic failed: {0}")]
     MoneyArithmeticError(String),
@@ -108,13 +106,6 @@ impl Account {
 
         if dispute_amount.is_negative() {
             return Err(AccountError::NegativeTransactionAmount);
-        }
-
-        if self.available < dispute_amount {
-            return Err(AccountError::DisputableBalanceExceeded(
-                self.available,
-                dispute_amount,
-            ));
         }
 
         let new_available = self
@@ -312,6 +303,21 @@ mod tests {
         }
 
         #[test]
+        fn test_withdraw_from_account_with_negative_balance() {
+            let mut account = Account::new(ClientId::new(1));
+            account.available = Money::parse("-10").unwrap();
+            account.held = Money::parse("10").unwrap();
+
+            let withdrawal_result = account.withdraw(Money::parse("1").unwrap());
+            assert!(withdrawal_result.is_err());
+
+            assert_eq!(account.total_balance(), Money::parse("0").unwrap());
+            assert_eq!(account.available, Money::parse("-10").unwrap());
+            assert_eq!(account.held, Money::parse("10").unwrap());
+            assert!(!account.locked);
+        }
+
+        #[test]
         fn test_withdraw_from_locked_account() {
             let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse("42").unwrap();
@@ -380,12 +386,11 @@ mod tests {
             let mut account = Account::new(ClientId::new(1));
             account.available = Money::parse("42").unwrap();
 
-            let dispute_result = account.open_dispute(Money::parse("50").unwrap());
-            assert!(dispute_result.is_err());
+            let _dispute_result = account.open_dispute(Money::parse("50").unwrap());
 
             assert_eq!(account.total_balance(), Money::parse("42").unwrap());
-            assert_eq!(account.available, Money::parse("42").unwrap());
-            assert_eq!(account.held, Money::parse("0").unwrap());
+            assert_eq!(account.available, Money::parse("-8").unwrap());
+            assert_eq!(account.held, Money::parse("50").unwrap());
             assert!(!account.locked);
         }
 
@@ -395,12 +400,11 @@ mod tests {
 
             assert_eq!(account.total_balance(), Money::parse("0").unwrap());
 
-            let dispute_result = account.open_dispute(Money::parse("42").unwrap());
-            assert!(dispute_result.is_err());
+            let _dispute_result = account.open_dispute(Money::parse("42").unwrap());
 
             assert_eq!(account.total_balance(), Money::parse("0").unwrap());
-            assert_eq!(account.available, Money::parse("0").unwrap());
-            assert_eq!(account.held, Money::parse("0").unwrap());
+            assert_eq!(account.available, Money::parse("-42").unwrap());
+            assert_eq!(account.held, Money::parse("42").unwrap());
             assert!(!account.locked);
         }
 
